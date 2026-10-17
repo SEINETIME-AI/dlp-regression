@@ -28,7 +28,8 @@ Playwright browser download is needed. The dev stack must be running
 .\.venv\Scripts\python.exe run.py --cleanup                      # remove leftovers
 ```
 
-Each run writes `reports/<run-id>/summary.md` plus screenshots of every UI step.
+Each scenario writes `reports/<scenario>.log` (PASS/FAIL per check), replacing the
+previous run's log; a failing scenario also leaves `reports/<scenario>-failure.png`.
 
 ## What a scenario does
 

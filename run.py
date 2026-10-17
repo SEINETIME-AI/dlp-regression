@@ -14,7 +14,7 @@ from playwright.sync_api import sync_playwright
 
 from harness.api import Api
 from harness.config import Settings
-from harness.report import write_report
+from harness.report import write_log
 from harness.scenario import Scenario
 
 
@@ -43,23 +43,16 @@ def main() -> int:
             parser.error(f"unknown scenario(s): {', '.join(sorted(missing))}")
 
     run_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    report_dir = settings.reports_dir / run_id
     results = []
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(channel="msedge", headless=not args.headed)
         for folder in folders:
             print(f"== {folder.name}", flush=True)
-            result = Scenario(folder, settings, api, run_id, report_dir).run(browser, args.keep)
-            for ok, message in result.checks:
-                print(f"   [{'PASS' if ok else 'FAIL'}] {message}")
-            if result.error:
-                print(f"   [ERROR] {result.error}")
-            print(f"   => {'PASSED' if result.passed else 'FAILED'} in {result.seconds:.0f}s", flush=True)
+            result = Scenario(folder, settings, api, run_id).run(browser, args.keep)
+            log = write_log(settings.reports_dir, result)
+            print(log.read_text(encoding="utf-8"), end="", flush=True)
             results.append(result)
         browser.close()
-
-    summary = write_report(report_dir, run_id, results)
-    print(f"\nReport: {summary}")
     return 0 if all(r.passed for r in results) else 1
 
 

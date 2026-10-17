@@ -40,14 +40,14 @@ def wait_until(predicate, timeout_s: int, interval_s: float = 3.0, what: str = "
 
 
 class Scenario:
-    def __init__(self, folder: Path, settings: Settings, api: Api, run_id: str, report_dir: Path):
+    def __init__(self, folder: Path, settings: Settings, api: Api, run_id: str):
         self.name = folder.name
         self.spec = yaml.safe_load((folder / "scenario.yaml").read_text(encoding="utf-8"))
         self.settings = settings
         self.api = api
         self.data = settings.data_dir / self.name
         self.root = settings.work_root / run_id / self.name
-        self.report_dir = report_dir / self.name
+        self.failure_shot = settings.reports_dir / f"{self.name}-failure.png"
         self.result = Result(self.name, self.spec.get("title", ""))
         self.policy_version_before = None
 
@@ -55,10 +55,11 @@ class Scenario:
     def run(self, browser: Browser, keep: bool) -> Result:
         started = time.monotonic()
         console = None
+        self.failure_shot.unlink(missing_ok=True)
         try:
             self.check_source_files()
             page = browser.new_page(viewport={"width": 1500, "height": 1000})
-            console = AdminConsole(page, self.settings.base_url, self.report_dir)
+            console = AdminConsole(page, self.settings.base_url)
             console.login(self.settings.admin_user, self.settings.admin_password)
             self.setup(console)
             self.wait_for_policy()
@@ -70,7 +71,7 @@ class Scenario:
             self.result.error = f"{type(error).__name__}: {error}"
             if console:
                 try:
-                    console.shot("failure")
+                    console.screenshot(self.failure_shot)
                 except Exception:  # noqa: BLE001
                     pass
         finally:

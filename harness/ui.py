@@ -8,16 +8,13 @@ SHORT = 1500
 
 
 class AdminConsole:
-    def __init__(self, page: Page, base_url: str, shots: Path):
+    def __init__(self, page: Page, base_url: str):
         self.page = page
         self.base_url = base_url.rstrip("/")
-        self.shots = shots
-        self._shot_index = 0
 
-    def shot(self, name: str):
-        self._shot_index += 1
-        self.shots.mkdir(parents=True, exist_ok=True)
-        self.page.screenshot(path=str(self.shots / f"{self._shot_index:02d}-{name}.png"), full_page=True)
+    def screenshot(self, path: Path):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.page.screenshot(path=str(path), full_page=True)
 
     def open(self, path: str):
         self.page.goto(self.base_url + path)
@@ -49,7 +46,6 @@ class AdminConsole:
         dialog = self.dialog()
         dialog.get_by_label(re.compile("^Mã")).first.fill(code)
         dialog.get_by_label(re.compile("^Tên hiển thị")).first.fill(name)
-        self.shot(f"doctype-{code}")
         dialog.get_by_role("button", name="Tạo", exact=True).click()
         expect(dialog).to_be_hidden()
 
@@ -67,7 +63,6 @@ class AdminConsole:
         self.page.get_by_role("option", name=department, exact=True).click()
         self.page.keyboard.press("Escape")  # closes the open listbox, not the dialog
         expect(self.page.get_by_role("listbox")).to_be_hidden()
-        self.shot("data-source-form")
         dialog.get_by_role("button", name="Tạo nguồn", exact=True).click()
         expect(dialog).to_be_hidden()
 
@@ -81,7 +76,6 @@ class AdminConsole:
         self.pick(form.get_by_role("combobox", name=re.compile(r"Công ty con \/ Ban chuyên môn")), company)
         self.pick(form.locator('[aria-labelledby="org-unit-label"]'), department)
         form.get_by_role("checkbox", name="Kích hoạt").check()  # new policies start inactive
-        self.shot("policy-general")
 
         form.get_by_role("tab", name=re.compile("Điều kiện phân loại")).click()
         form.get_by_role("button", name="Thêm điều kiện", exact=True).click()
@@ -101,11 +95,9 @@ class AdminConsole:
                 # The picker closes itself on select; an Escape here would close the editor instead.
                 expect(self.page.get_by_role("tree")).to_be_hidden()
             card.get_by_label(re.compile("^Giá trị")).first.fill(condition["keyword"])
-            self.shot(f"policy-condition-{index}")
         # "Lưu điều kiện" for one condition, "Lưu N điều kiện" for more.
         editor.get_by_role("button", name=re.compile(r"^Lưu( \d+)? điều kiện$")).click()
         expect(editor).to_be_hidden()
-        self.shot("policy-ready")
         form.get_by_role("button", name="Tạo chính sách", exact=True).click()
         expect(form).to_be_hidden()
 
@@ -115,7 +107,6 @@ class AdminConsole:
         self.open("/documents")
         self.page.get_by_label("Tìm tệp / đường dẫn").fill(search)
         self.page.wait_for_timeout(2000)
-        self.shot("documents")
         rows = {}
         for row in self.page.get_by_role("row").all()[1:]:
             text = row.inner_text()
