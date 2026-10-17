@@ -56,6 +56,14 @@ class Api:
         return [p for p in self.items("/api/policies") if p.get("department") == department]
 
     # ── Cleanup (idempotent) ─────────────────────────────────────────────────
+    def purge_documents(self, path_prefix: str) -> int:
+        """Deletes the inventory rows (and their events) under a folder."""
+        query = urllib.parse.urlencode({"path_prefix": path_prefix})
+        return self.call("DELETE", f"/api/documents?{query}")["deleted"]
+
+    def delete_document_type(self, code: str):
+        self.call("DELETE", f"/api/document-types/{urllib.parse.quote(code)}")
+
     def delete_uat_objects(self, prefix: str) -> list[str]:
         """Removes only data sources and policies the UAT created (name starts with prefix)."""
         removed = []

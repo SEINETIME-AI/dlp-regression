@@ -1,6 +1,6 @@
 title: Keyword secrecy — the higher level wins, several domains at once
 
-# Created once and kept: documents in the inventory keep referring to them.
+# Created in the console for the run and deleted after it.
 document_types:
   - code: uat-finance
     name: UAT Tài chính

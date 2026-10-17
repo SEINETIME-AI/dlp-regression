@@ -37,8 +37,7 @@ Department, where this machine is enrolled. Its real policy and data sources sta
 they are; the agent classifies with the merged policy (real + UAT), so scenario
 documents avoid the real policy's triggers. A run only adds objects named `UAT …`.
 
-1. As admin in the console: creates the scenario's document types (once; they are
-   kept because inventory documents keep referring to them), a `UAT …` data source
+1. As admin in the console: creates the scenario's document types, a `UAT …` data source
    for a fresh folder under `C:\dlp-uat\<run-id>\`, and an active `UAT …`
    classification policy with the scenario's conditions.
 2. Waits for the agent to pull the merged policy.
@@ -48,10 +47,10 @@ documents avoid the real policy's triggers. A run only adds objects named `UAT �
    embedded in the file.
 5. Cleans up even when a step failed: deletes the copied (labeled) files, removes the
    `UAT …` data source and policy, waits for the agent to go back to the real policy,
-   and checks that no labeled file is left and the originals in `data/` are unlabeled.
-
-Each run still leaves its files in the inventory as "removed" rows; the backend has no
-way to delete document rows yet.
+   purges the run's inventory rows (`DELETE /api/documents?path_prefix=…`, system
+   admin only) and deletes the scenario's document types. It then checks that no
+   labeled file, inventory row or document type is left and that the originals in
+   `data/` are unlabeled.
 
 ## Layout
 

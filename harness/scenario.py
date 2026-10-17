@@ -131,15 +131,14 @@ class Scenario:
         for name in self.spec["expected"]:
             shutil.copy2(self.data / name, self.root / name)
 
-    def wait_for_documents(self) -> dict[str, dict]:
+    def run_documents(self) -> list[dict]:
         root = str(self.root).lower()
+        return [d for d in self.api.documents(self.settings.department_code)
+                if d["file_path"].lower().startswith(root)]
 
+    def wait_for_documents(self) -> dict[str, dict]:
         def classified():
-            found = {
-                Path(d["file_path"]).name: d
-                for d in self.api.documents(self.settings.department_code)
-                if d["file_path"].lower().startswith(root) and d["status"] != "removed"
-            }
+            found = {Path(d["file_path"]).name: d for d in self.run_documents() if d["status"] != "removed"}
             return found if set(found) >= set(self.spec["expected"]) else None
         return wait_until(classified, self.settings.classify_timeout_s, what="the files to be classified")
 
@@ -182,18 +181,30 @@ class Scenario:
                 time.sleep(5)
             if self.root.parent.exists() and not any(self.root.parent.iterdir()):
                 self.root.parent.rmdir()
+            # Purging before the agent reports the deletions would let a late report recreate rows.
+            wait_until(lambda: all(d["status"] == "removed" for d in self.run_documents()),
+                       self.settings.classify_timeout_s, what="the agent to report the deleted files")
             version_with_uat = self.api.machine(self.settings.machine)["policy_version"]
             removed = self.api.delete_uat_objects(self.settings.prefix)
             notes += removed
             if removed:
                 self.wait_for_agent_policy(version_with_uat, "the agent to go back to the real policy")
                 notes.append("agent back on the real policy only")
+            notes.append(f"{self.api.purge_documents(str(self.root))} inventory row(s) purged")
+            for doc_type in self.spec.get("document_types", []):
+                if self.api.document_type(doc_type["code"]):
+                    self.api.delete_document_type(doc_type["code"])
+                    notes.append(f"document type {doc_type['code']}")
         except Exception as error:  # noqa: BLE001
             self.result.error += f" | cleanup failed: {error}"
         self.result.check(True, "cleanup: " + (", ".join(notes) or "nothing to remove"))
 
-        # No label may outlive the run: the copies are gone and the originals never got one.
+        # Nothing of the run may outlive it: no labeled file, no inventory row, no document type.
         self.result.check(not self.root.exists(), f"cleanup: work folder {self.root} removed")
+        leftover_rows = [d["file_path"] for d in self.run_documents()]
+        self.result.check(not leftover_rows, f"cleanup: no inventory rows left {leftover_rows or ''}".rstrip())
+        leftover_types = [t["code"] for t in self.spec.get("document_types", []) if self.api.document_type(t["code"])]
+        self.result.check(not leftover_types, f"cleanup: no UAT document types left {leftover_types or ''}".rstrip())
         labeled = [name for name in self.spec["expected"]
                    if (self.data / name).suffix in (".docx", ".xlsx") and embedded_label(self.data / name)]
         self.result.check(not labeled, f"cleanup: originals in data/ carry no label {labeled or ''}".rstrip())
