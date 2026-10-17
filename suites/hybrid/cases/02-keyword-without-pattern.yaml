@@ -1,0 +1,6 @@
+title: The keyword alone does not fire an AND rule
+
+expected:
+  ghi-chu.docx:
+    secrecy: public
+    domains: []          # "mã dự án", no DA- code

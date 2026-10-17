@@ -1,0 +1,6 @@
+title: Keyword and data pattern both present fire the AND rule
+
+expected:
+  ho-so.docx:
+    secrecy: public
+    domains: [uat-project]  # "mã dự án" + DA-KHCN

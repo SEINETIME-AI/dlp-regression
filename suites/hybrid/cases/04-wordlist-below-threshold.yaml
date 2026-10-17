@@ -1,0 +1,6 @@
+title: One wordlist term stays below the threshold
+
+expected:
+  thiet-bi.docx:
+    secrecy: public      # "máy chủ" = 0.5
+    domains: []

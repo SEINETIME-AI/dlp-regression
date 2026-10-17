@@ -1,0 +1,6 @@
+title: A PDF firing both hybrid rules gets both results
+
+expected:
+  tong-hop.pdf:
+    secrecy: secret
+    domains: [uat-project]

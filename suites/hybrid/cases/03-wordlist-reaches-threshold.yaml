@@ -1,0 +1,6 @@
+title: Two wordlist terms reach the threshold
+
+expected:
+  ha-tang.docx:
+    secrecy: secret      # "sơ đồ mạng" + "tường lửa" = 1.0
+    domains: []

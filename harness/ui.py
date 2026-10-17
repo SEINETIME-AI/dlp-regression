@@ -100,9 +100,38 @@ class AdminConsole:
                 self.page.get_by_role("treeitem", name=type_names[condition["document_type"]]).click()
                 # The picker closes itself on select; an Escape here would close the editor instead.
                 expect(self.page.get_by_role("tree")).to_be_hidden()
-            card.get_by_label(re.compile("^Giá trị")).first.fill(condition["keyword"])
+            if "hybrid" in condition:
+                self.fill_hybrid(card, condition["hybrid"])
+            else:
+                card.get_by_label(re.compile("^Giá trị")).first.fill(condition["keyword"])
         # "Lưu điều kiện" for one condition, "Lưu N điều kiện" for more.
         editor.get_by_role("button", name=re.compile(r"^Lưu( \d+)? điều kiện$")).click()
         expect(editor).to_be_hidden()
         form.get_by_role("button", name="Tạo chính sách", exact=True).click()
         expect(form).to_be_hidden()
+
+    _COMBINATORS = {"all": "Tất cả điều kiện", "any": "Bất kỳ điều kiện nào"}
+    _SUB_TYPES = {"keyword": "Từ khóa", "data_pattern": "Mẫu dữ liệu (regex)", "wordlist": "Danh sách từ"}
+
+    def fill_hybrid(self, card, spec: dict):
+        """Sub-conditions are appended at the end, so each one's fields are the last of their kind."""
+        self.pick(card.get_by_role("combobox", name="Kỹ thuật nhận diện"), "Hybrid (nhiều tín hiệu)")
+        self.pick(card.get_by_role("combobox", name="Tổ hợp"), self._COMBINATORS[spec["combinator"]])
+        for index, sub in enumerate(spec["conditions"]):
+            (kind, value), = sub.items()
+            if index > 0:
+                card.get_by_role("button", name="Thêm điều kiện con", exact=True).click()
+            if kind != "keyword":  # a new sub-condition starts as a keyword
+                self.pick(card.get_by_role("combobox", name="Loại điều kiện").nth(index), self._SUB_TYPES[kind])
+            if kind == "keyword":
+                field = card.get_by_label("Từ khóa", exact=True).last
+                field.fill(value)
+                field.press("Enter")
+            elif kind == "data_pattern":
+                card.get_by_label("Biểu thức RE2", exact=True).last.fill(value)
+            elif kind == "wordlist":
+                # Comma-separated terms split on blur, each at the default weight 0.5;
+                # the default threshold is 1, so any two terms fire it.
+                field = card.get_by_label("Từ ngữ", exact=True).last
+                field.fill(", ".join(value))
+                field.blur()
