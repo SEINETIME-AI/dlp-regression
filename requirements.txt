@@ -1,2 +1,6 @@
 playwright==1.64.0
 PyYAML==6.0.3
+pypdf==6.21.1
+# tools/make_data.py only
+fpdf2==2.8.9
+pillow==13.0.0

@@ -12,7 +12,7 @@ from playwright.sync_api import Browser
 
 from harness.api import Api
 from harness.config import Settings
-from harness.files import embedded_label
+from harness.files import LABELED_SUFFIXES, embedded_label
 from harness.ui import AdminConsole
 
 
@@ -54,11 +54,12 @@ def wait_until(predicate, timeout_s: int, interval_s: float = 3.0, what: str = "
 
 
 class Case:
-    def __init__(self, spec: Path, data: Path, root: Path):
+    def __init__(self, spec: Path, data: Path, root: Path, backend_result):
         self.name = spec.stem
         self.expected = yaml.safe_load(spec.read_text(encoding="utf-8"))["expected"]
         self.data = data / self.name
         self.root = root / self.name
+        self.backend_result = backend_result  # for files that cannot carry a label (images)
         self.result = CaseResult(self.name)
 
     def sources(self) -> list[Path]:
@@ -70,7 +71,14 @@ class Case:
             shutil.copy2(source, self.root / source.name)
 
     def labels(self) -> dict | None:
-        labels = {name: embedded_label(self.root / name) for name in self.expected}
+        labels = {}
+        for name in self.expected:
+            path = self.root / name
+            try:
+                labels[name] = (embedded_label(path) if path.suffix.lower() in LABELED_SUFFIXES
+                                else self.backend_result(path))
+            except Exception:  # noqa: BLE001 — the agent may be rewriting the file right now
+                labels[name] = None
         return labels if all(labels.values()) else None
 
     def verify(self, labels: dict):
@@ -95,7 +103,7 @@ class Suite:
             if unknown:
                 raise ValueError(f"unknown case(s) in {self.name}: {', '.join(sorted(unknown))}")
             case_specs = [p for p in case_specs if p.stem in only]
-        self.cases = [Case(p, settings.data_dir / self.name, self.root) for p in case_specs]
+        self.cases = [Case(p, settings.data_dir / self.name, self.root, self.backend_result) for p in case_specs]
         self.result = SuiteResult(self.name)
         self.policy_version_before = None
 
@@ -134,7 +142,7 @@ class Suite:
             for source in case.sources():
                 if not source.exists():
                     raise FileNotFoundError(f"missing test file {source}")
-                if source.suffix in (".docx", ".xlsx") and embedded_label(source):
+                if source.suffix.lower() in LABELED_SUFFIXES and embedded_label(source):
                     raise RuntimeError(f"{source} already carries a NextDLP label; regenerate data/")
                 digest = hashlib.sha256(source.read_bytes()).hexdigest()
                 if digest in seen:
@@ -158,7 +166,8 @@ class Suite:
 
         self.root.mkdir(parents=True, exist_ok=True)
         console.create_data_source(f"{settings.prefix}{self.name}", str(self.root),
-                                   settings.company_name, settings.department_name)
+                                   settings.company_name, settings.department_name,
+                                   self.setup_spec.get("data_source", {}).get("extra_extensions", []))
 
         secrecy_names = {s["code"]: s["display_name"] for s in self.api.items("/api/taxonomy/secrecy-labels")}
         type_names = {t["code"]: t["name"] for t in self.setup_spec.get("document_types", [])}
@@ -190,6 +199,14 @@ class Suite:
                 time.sleep(1)
             for case in pending:
                 case.result.error = f"no label after {self.settings.classify_timeout_s}s"
+
+    def backend_result(self, path: Path) -> dict | None:
+        """What the backend recorded for one file (the agent reports within ~30 s)."""
+        for document in self.run_documents():
+            if document["file_path"].lower() == str(path).lower() and document["status"] != "removed":
+                domains = [d for d in document.get("domain_label") or [] if d != "general"]
+                return {"secrecy": document["secrecy_label"], "domains": sorted(domains)}
+        return None
 
     # ── Cleanup ──────────────────────────────────────────────────────────────
     def run_documents(self) -> list[dict]:
@@ -234,7 +251,7 @@ class Suite:
         if types := [t["code"] for t in self.setup_spec.get("document_types", []) if self.api.document_type(t["code"])]:
             problems.append(f"document types left: {types}")
         if labeled := [str(s) for case in self.cases for s in case.sources()
-                       if s.suffix in (".docx", ".xlsx") and embedded_label(s)]:
+                       if s.suffix.lower() in LABELED_SUFFIXES and embedded_label(s)]:
             problems.append(f"originals in data/ got a label: {labeled}")
         self.result.cleanup_ok = not problems
         self.result.cleanup = "; ".join(problems) if problems else ", ".join(notes)

@@ -1,0 +1,6 @@
+title: A standalone image is OCR'd as a whole (no embedded label; result read from the backend)
+
+expected:
+  anh-chup.png:
+    secrecy: public
+    domains: [uat-hr]       # "bảng lương" in the image

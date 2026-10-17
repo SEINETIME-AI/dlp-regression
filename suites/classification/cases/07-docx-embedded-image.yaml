@@ -1,0 +1,6 @@
+title: Text inside an image embedded in a docx is OCR'd
+
+expected:
+  bien-ban.docx:
+    secrecy: confidential   # "nội bộ" only in word/media/image1.png
+    domains: []

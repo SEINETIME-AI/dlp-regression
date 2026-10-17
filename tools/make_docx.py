@@ -22,16 +22,24 @@ RELS = (
     'Target="word/document.xml"/></Relationships>')
 
 
-def write_docx(path: str, paragraphs: list[str]):
+def write_docx(path: str, paragraphs: list[str], media: dict[str, bytes] | None = None):
+    """`media` adds files under word/media/ (e.g. {"image1.png": png_bytes}); the agent
+    OCRs images found there even when the body does not reference them."""
     body = "".join(f"<w:p><w:r><w:t xml:space=\"preserve\">{escape(p)}</w:t></w:r></w:p>" for p in paragraphs)
     document = (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
         f"<w:body>{body}</w:body></w:document>")
+    content_types = CONTENT_TYPES
+    if media:
+        content_types = content_types.replace(
+            '<Default Extension="xml"', '<Default Extension="png" ContentType="image/png"/><Default Extension="xml"')
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("[Content_Types].xml", CONTENT_TYPES)
+        archive.writestr("[Content_Types].xml", content_types)
         archive.writestr("_rels/.rels", RELS)
         archive.writestr("word/document.xml", document)
+        for name, data in (media or {}).items():
+            archive.writestr(f"word/media/{name}", data)
 
 
 if __name__ == "__main__":

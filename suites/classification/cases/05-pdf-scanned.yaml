@@ -1,0 +1,6 @@
+title: A scanned PDF (no text layer) is rendered and OCR'd
+
+expected:
+  ban-scan.pdf:
+    secrecy: secret         # "tuyệt mật" in the page image
+    domains: []

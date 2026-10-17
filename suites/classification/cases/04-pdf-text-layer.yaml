@@ -1,0 +1,6 @@
+title: A PDF's text layer is classified like any document
+
+expected:
+  bao-cao.pdf:
+    secrecy: confidential   # "nội bộ"
+    domains: [uat-finance]  # "phiếu chi"

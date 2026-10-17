@@ -50,7 +50,8 @@ class AdminConsole:
         expect(dialog).to_be_hidden()
 
     # ── Data sources ─────────────────────────────────────────────────────────
-    def create_data_source(self, name: str, root: str, company: str, department: str):
+    def create_data_source(self, name: str, root: str, company: str, department: str,
+                           extra_extensions: list[str] = ()):
         self.open("/data-sources")
         self.page.get_by_role("button", name="Thêm nguồn dữ liệu", exact=True).click()
         dialog = self.dialog()
@@ -63,6 +64,11 @@ class AdminConsole:
         self.page.get_by_role("option", name=department, exact=True).click()
         self.page.keyboard.press("Escape")  # closes the open listbox, not the dialog
         expect(self.page.get_by_role("listbox")).to_be_hidden()
+        # The form starts with .pdf/.docx/.xlsx; other types are typed in.
+        include = dialog.get_by_label("Include extensions")
+        for extension in extra_extensions:
+            include.fill(extension)
+            include.press("Enter")
         dialog.get_by_role("button", name="Tạo nguồn", exact=True).click()
         expect(dialog).to_be_hidden()
 
