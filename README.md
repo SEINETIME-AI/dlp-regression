@@ -37,9 +37,9 @@ line — replacing the previous run's log; a failing suite also leaves
 ## Suites and cases
 
 ```
-suites/<suite>/setup.yaml              document types + policies, set up once per run
-suites/<suite>/cases/<case>/expected.yaml   expected secrecy + document types per file
-data/<suite>/<case>/                   the case's documents (Git LFS)
+suites/<suite>/setup.yaml         document types + policies, set up once per run
+suites/<suite>/cases/<case>.yaml  expected secrecy + document types per file
+data/<suite>/<case>/              the case's documents (Git LFS)
 ```
 
 Setting rules up and tearing them down is the slow part (console work plus the

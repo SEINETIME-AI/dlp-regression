@@ -54,9 +54,9 @@ def wait_until(predicate, timeout_s: int, interval_s: float = 3.0, what: str = "
 
 
 class Case:
-    def __init__(self, folder: Path, data: Path, root: Path):
-        self.name = folder.name
-        self.expected = yaml.safe_load((folder / "expected.yaml").read_text(encoding="utf-8"))["expected"]
+    def __init__(self, spec: Path, data: Path, root: Path):
+        self.name = spec.stem
+        self.expected = yaml.safe_load(spec.read_text(encoding="utf-8"))["expected"]
         self.data = data / self.name
         self.root = root / self.name
         self.result = CaseResult(self.name)
@@ -89,13 +89,13 @@ class Suite:
         self.api = api
         self.root = settings.work_root / run_id / self.name
         self.failure_shot = settings.reports_dir / f"{self.name}-failure.png"
-        case_dirs = sorted(p for p in (folder / "cases").iterdir() if (p / "expected.yaml").exists())
+        case_specs = sorted((folder / "cases").glob("*.yaml"))
         if only:
-            unknown = set(only) - {p.name for p in case_dirs}
+            unknown = set(only) - {p.stem for p in case_specs}
             if unknown:
                 raise ValueError(f"unknown case(s) in {self.name}: {', '.join(sorted(unknown))}")
-            case_dirs = [p for p in case_dirs if p.name in only]
-        self.cases = [Case(p, settings.data_dir / self.name, self.root) for p in case_dirs]
+            case_specs = [p for p in case_specs if p.stem in only]
+        self.cases = [Case(p, settings.data_dir / self.name, self.root) for p in case_specs]
         self.result = SuiteResult(self.name)
         self.policy_version_before = None
 

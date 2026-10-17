@@ -14,15 +14,15 @@ document_types:
 policies:
   - name: UAT classification keyword
     conditions:
-      - name: UAT nội bộ          # 01, 02
+      - name: UAT nội bộ
         secrecy: confidential
         keyword: nội bộ
-      - name: UAT tuyệt mật       # 01
+      - name: UAT tuyệt mật
         secrecy: secret
         keyword: tuyệt mật
-      - name: UAT phiếu chi       # 02
+      - name: UAT phiếu chi
         document_type: uat-finance
         keyword: phiếu chi
-      - name: UAT bảng lương      # 02
+      - name: UAT bảng lương
         document_type: uat-hr
         keyword: bảng lương
