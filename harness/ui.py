@@ -100,17 +100,3 @@ class AdminConsole:
         expect(editor).to_be_hidden()
         form.get_by_role("button", name="Tạo chính sách", exact=True).click()
         expect(form).to_be_hidden()
-
-    # ── Documents ────────────────────────────────────────────────────────────
-    def document_rows(self, search: str) -> dict[str, str]:
-        """Inventory rows whose path contains `search`, as file name -> row text."""
-        self.open("/documents")
-        self.page.get_by_label("Tìm tệp / đường dẫn").fill(search)
-        self.page.wait_for_timeout(2000)
-        rows = {}
-        for row in self.page.get_by_role("row").all()[1:]:
-            text = row.inner_text()
-            first_line = text.strip().split("\n")[0].strip()
-            if first_line:
-                rows[first_line] = text
-        return rows

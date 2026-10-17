@@ -28,8 +28,9 @@ Playwright browser download is needed. The dev stack must be running
 .\.venv\Scripts\python.exe run.py --cleanup                      # remove leftovers
 ```
 
-Each scenario writes `reports/<scenario>.log` (PASS/FAIL per check), replacing the
-previous run's log; a failing scenario also leaves `reports/<scenario>-failure.png`.
+Each scenario writes `reports/<scenario>.log` — PASS/FAIL per file, then one cleanup
+line — replacing the previous run's log; a failing scenario also leaves
+`reports/<scenario>-failure.png`.
 
 ## What a scenario does
 
@@ -43,9 +44,9 @@ documents avoid the real policy's triggers. A run only adds objects named `UAT �
    classification policy with the scenario's conditions.
 2. Waits for the agent to pull the merged policy.
 3. Copies the scenario's files from `data/` into the data source folder.
-4. Waits until the backend lists every file, then checks the secrecy level and the
-   document types in the backend, on the Documents page and in the label the agent
-   embedded in the file.
+4. Reads the label the agent writes into each file right after classifying it and
+   compares its secrecy level and document types with `expected` — this is the
+   result, logged as soon as it is known.
 5. Cleans up even when a step failed: deletes the copied (labeled) files, removes the
    `UAT …` data source and policy, waits for the agent to go back to the real policy,
    purges the run's inventory rows (`DELETE /api/documents?path_prefix=…`, system

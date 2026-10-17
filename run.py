@@ -1,4 +1,4 @@
-"""Runs the UAT scenarios against the local NextDLP stack and agent.
+﻿"""Runs the UAT scenarios against the local NextDLP stack and agent.
 
   python run.py --all
   python run.py --scenario 01-keyword-secrecy
@@ -14,7 +14,7 @@ from playwright.sync_api import sync_playwright
 
 from harness.api import Api
 from harness.config import Settings
-from harness.report import write_log
+from harness.report import append_cleanup, write_log
 from harness.scenario import Scenario
 
 
@@ -47,13 +47,17 @@ def main() -> int:
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(channel="msedge", headless=not args.headed)
         for folder in folders:
-            print(f"== {folder.name}", flush=True)
-            result = Scenario(folder, settings, api, run_id).run(browser, args.keep)
-            log = write_log(settings.reports_dir, result)
-            print(log.read_text(encoding="utf-8"), end="", flush=True)
+            def report(result):
+                log = write_log(settings.reports_dir, result)
+                print(log.read_text(encoding="utf-8"), end="", flush=True)
+
+            print(f"running {folder.name} …", flush=True)
+            result = Scenario(folder, settings, api, run_id).run(browser, args.keep, report)
+            if not args.keep:
+                print(append_cleanup(settings.reports_dir / f"{result.name}.log", result), end="", flush=True)
             results.append(result)
         browser.close()
-    return 0 if all(r.passed for r in results) else 1
+    return 0 if all(r.passed and r.cleanup_ok for r in results) else 1
 
 
 if __name__ == "__main__":

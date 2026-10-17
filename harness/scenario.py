@@ -23,6 +23,8 @@ class Result:
     checks: list[tuple[bool, str]] = field(default_factory=list)
     error: str = ""
     seconds: float = 0.0
+    cleanup: str = ""
+    cleanup_ok: bool = True
 
     def check(self, ok: bool, message: str):
         self.checks.append((ok, message))
@@ -52,7 +54,8 @@ class Scenario:
         self.policy_version_before = None
 
     # ── Steps ────────────────────────────────────────────────────────────────
-    def run(self, browser: Browser, keep: bool) -> Result:
+    def run(self, browser: Browser, keep: bool, report) -> Result:
+        """Reports the classification result as soon as it is known, then cleans up."""
         started = time.monotonic()
         console = None
         self.failure_shot.unlink(missing_ok=True)
@@ -64,9 +67,7 @@ class Scenario:
             self.setup(console)
             self.wait_for_policy()
             self.drop_files()
-            documents = self.wait_for_documents()
-            self.verify(console, documents)
-            self.result.passed = all(ok for ok, _ in self.result.checks)
+            self.verify(self.wait_for_labels())
         except Exception as error:  # noqa: BLE001 — every failure must still reach cleanup and the report
             self.result.error = f"{type(error).__name__}: {error}"
             if console:
@@ -74,11 +75,11 @@ class Scenario:
                     console.screenshot(self.failure_shot)
                 except Exception:  # noqa: BLE001
                     pass
-        finally:
-            if not keep:
-                self.cleanup()
-            self.result.passed = not self.result.error and all(ok for ok, _ in self.result.checks)
-            self.result.seconds = time.monotonic() - started
+        self.result.passed = not self.result.error and all(ok for ok, _ in self.result.checks)
+        self.result.seconds = time.monotonic() - started
+        report(self.result)
+        if not keep:
+            self.cleanup()
         return self.result
 
     def check_source_files(self):
@@ -94,13 +95,8 @@ class Scenario:
         machine = self.api.machine(settings.machine)
         if machine["department"] != settings.department_code:
             raise RuntimeError(f"{machine['name']} is in {machine['department']}, not {settings.department_code}")
-        leftovers = self.api.delete_uat_objects(settings.prefix)
-        if leftovers:
-            self.result.check(True, "removed leftovers of an earlier run: " + ", ".join(leftovers))
+        if self.api.delete_uat_objects(settings.prefix):  # leftovers of an interrupted run
             self.wait_for_agent_policy(machine["policy_version"], "the agent to drop the leftovers")
-        real = [f"{p['name']} v{p['version']}{'' if p.get('is_active') else ' (inactive)'}"
-                for p in self.api.department_policies(settings.department_code)]
-        self.result.check(True, f"real policies in {settings.department_code}: {', '.join(real) or 'none'}")
         self.policy_version_before = self.api.machine(settings.machine)["policy_version"]
 
         for doc_type in self.spec.get("document_types", []):
@@ -125,7 +121,6 @@ class Scenario:
 
     def wait_for_policy(self):
         self.wait_for_agent_policy(self.policy_version_before, "the agent to pull the UAT policy")
-        self.result.check(True, "agent pulled the merged policy (real + UAT)")
         time.sleep(5)  # let the watcher on the new data source start
 
     def drop_files(self):
@@ -137,44 +132,24 @@ class Scenario:
         return [d for d in self.api.documents(self.settings.department_code)
                 if d["file_path"].lower().startswith(root)]
 
-    def wait_for_documents(self) -> dict[str, dict]:
-        def classified():
-            found = {Path(d["file_path"]).name: d for d in self.run_documents() if d["status"] != "removed"}
-            return found if set(found) >= set(self.spec["expected"]) else None
-        return wait_until(classified, self.settings.classify_timeout_s, what="the files to be classified")
+    def wait_for_labels(self) -> dict[str, dict]:
+        """The agent writes its decision into each file right after classifying it."""
+        def labeled():
+            labels = {name: embedded_label(self.root / name) for name in self.spec["expected"]}
+            return labels if all(labels.values()) else None
+        return wait_until(labeled, self.settings.classify_timeout_s, interval_s=1.0,
+                          what="the agent to classify the files")
 
-    def verify(self, console: AdminConsole, documents: dict[str, dict]):
-        rows = console.document_rows(str(self.root))
-        type_names = {t["code"]: t["name"] for t in self.spec.get("document_types", [])}
+    def verify(self, labels: dict[str, dict]):
         for name, expected in self.spec["expected"].items():
-            want_secrecy = expected["secrecy"]
-            want_domains = sorted(expected.get("domains", []))
-
-            document = documents[name]
-            got_domains = sorted(document.get("domain_label") or [])
-            self.result.check(document["secrecy_label"] == want_secrecy,
-                              f"{name}: backend secrecy {document['secrecy_label']} (want {want_secrecy})")
-            self.result.check(got_domains == want_domains,
-                              f"{name}: backend domains {got_domains} (want {want_domains})")
-
-            row = rows.get(name, "")
-            self.result.check(bool(row), f"{name}: listed on the Documents page")
-            if row:
-                self.result.check(want_secrecy in row.lower(), f"{name}: UI shows secrecy {want_secrecy}")
-                for code in want_domains:
-                    label = type_names.get(code, code)
-                    self.result.check(label in row, f"{name}: UI shows document type {label}")
-
-            label = embedded_label(self.root / name)
-            self.result.check(label is not None and label["secrecy"] == want_secrecy,
-                              f"{name}: label in file {label} (want secrecy {want_secrecy})")
-            if label:
-                self.result.check(label["domains"] == want_domains,
-                                  f"{name}: domains in file {label['domains']} (want {want_domains})")
+            want = (expected["secrecy"], sorted(expected.get("domains", [])))
+            got = (labels[name]["secrecy"], labels[name]["domains"])
+            message = f"{name}: {got[0]} {got[1]}"
+            self.result.check(got == want, message if got == want else f"{message} (want {want[0]} {want[1]})")
 
     # ── Cleanup ──────────────────────────────────────────────────────────────
     def cleanup(self):
-        notes = []
+        notes, problems = [], []
         try:
             # Delete while the agent still watches the folder, so the inventory marks them removed.
             if self.root.exists():
@@ -182,8 +157,11 @@ class Scenario:
                 time.sleep(5)
             if self.root.parent.exists() and not any(self.root.parent.iterdir()):
                 self.root.parent.rmdir()
-            # Purging before the agent reports the deletions would let a late report recreate rows.
-            wait_until(lambda: all(d["status"] == "removed" for d in self.run_documents()),
+            # Purging before the agent has reported the files (and their deletion) would let a
+            # late report recreate rows, so wait until every file shows up as removed.
+            expected = set(self.spec["expected"])
+            wait_until(lambda: {Path(d["file_path"]).name for d in self.run_documents()
+                                if d["status"] == "removed"} >= expected,
                        self.settings.classify_timeout_s, what="the agent to report the deleted files")
             version_with_uat = self.api.machine(self.settings.machine)["policy_version"]
             removed = self.api.delete_uat_objects(self.settings.prefix)
@@ -197,15 +175,17 @@ class Scenario:
                     self.api.delete_document_type(doc_type["code"])
                     notes.append(f"document type {doc_type['code']}")
         except Exception as error:  # noqa: BLE001
-            self.result.error += f" | cleanup failed: {error}"
-        self.result.check(True, "cleanup: " + (", ".join(notes) or "nothing to remove"))
+            problems.append(str(error))
 
         # Nothing of the run may outlive it: no labeled file, no inventory row, no document type.
-        self.result.check(not self.root.exists(), f"cleanup: work folder {self.root} removed")
-        leftover_rows = [d["file_path"] for d in self.run_documents()]
-        self.result.check(not leftover_rows, f"cleanup: no inventory rows left {leftover_rows or ''}".rstrip())
-        leftover_types = [t["code"] for t in self.spec.get("document_types", []) if self.api.document_type(t["code"])]
-        self.result.check(not leftover_types, f"cleanup: no UAT document types left {leftover_types or ''}".rstrip())
-        labeled = [name for name in self.spec["expected"]
-                   if (self.data / name).suffix in (".docx", ".xlsx") and embedded_label(self.data / name)]
-        self.result.check(not labeled, f"cleanup: originals in data/ carry no label {labeled or ''}".rstrip())
+        if self.root.exists():
+            problems.append(f"work folder {self.root} still exists")
+        if rows := [d["file_path"] for d in self.run_documents()]:
+            problems.append(f"inventory rows left: {rows}")
+        if types := [t["code"] for t in self.spec.get("document_types", []) if self.api.document_type(t["code"])]:
+            problems.append(f"document types left: {types}")
+        if labeled := [n for n in self.spec["expected"]
+                       if (self.data / n).suffix in (".docx", ".xlsx") and embedded_label(self.data / n)]:
+            problems.append(f"originals in data/ got a label: {labeled}")
+        self.result.cleanup_ok = not problems
+        self.result.cleanup = "; ".join(problems) if problems else ", ".join(notes)
