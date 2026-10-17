@@ -1,21 +1,27 @@
-"""Regenerates the synthetic documents in data/. Content is invented."""
+"""Regenerates the synthetic documents in data/. Content is invented.
+
+Each file only carries the trigger words of the rules its case is about (see the
+suite's setup.yaml), and no two files share content, so the agent's per-content
+cache never answers for another case.
+"""
 from pathlib import Path
 
 from make_docx import write_docx
 
 DATA = Path(__file__).resolve().parent.parent / "data"
 
-# The UAT runs next to the department's real policy, so the text avoids its
-# triggers: hóa đơn / thuế / phí / số tiền, "quý 1"/"quý 2", and long digit runs.
 FILES = {
-    "01-keyword-secrecy/bao-cao-quy.docx": [
-        "Tài liệu nội bộ, tuyệt mật — không phát tán ra ngoài.",
-        "Tổng hợp phiếu chi văn phòng phẩm và bảng lương khối hành chính.",
-        "Dữ liệu giả lập phục vụ kiểm thử.",
+    "classification/01-higher-secrecy-wins/thong-bao.docx": [
+        "Thông báo nội bộ, tuyệt mật — không phát tán ra ngoài.",
+        "Kế hoạch tổ chức lại khối văn phòng (dữ liệu giả lập).",
     ],
-    "01-keyword-secrecy/de-xuat.docx": [
-        "Đề xuất mua sắm — lưu hành nội bộ.",
-        "Kèm phiếu chi tạm ứng cho chuyến công tác.",
+    "classification/02-multi-domain/tong-hop.docx": [
+        "Tổng hợp lưu hành nội bộ.",
+        "Phiếu chi văn phòng phẩm và bảng lương khối hành chính (dữ liệu giả lập).",
+    ],
+    "classification/03-no-match-is-public/lich-hop.docx": [
+        "Lịch họp giao ban tuần tới tại phòng họp tầng hai.",
+        "Mời các trưởng nhóm tham dự đúng giờ (dữ liệu giả lập).",
     ],
 }
 

@@ -1,4 +1,4 @@
-import os
+﻿import os
 import socket
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -25,5 +25,5 @@ class Settings:
     policy_timeout_s: int = 240
     classify_timeout_s: int = 240
     data_dir: Path = field(default=REPO_ROOT / "data")
-    scenarios_dir: Path = field(default=REPO_ROOT / "scenarios")
+    suites_dir: Path = field(default=REPO_ROOT / "suites")
     reports_dir: Path = field(default=REPO_ROOT / "reports")

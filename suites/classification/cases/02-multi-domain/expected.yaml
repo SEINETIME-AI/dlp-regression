@@ -1,0 +1,6 @@
+title: One file gets every document type whose rule matches
+
+expected:
+  tong-hop.docx:
+    secrecy: confidential    # "nội bộ"
+    domains: [uat-finance, uat-hr]   # "phiếu chi" and "bảng lương"

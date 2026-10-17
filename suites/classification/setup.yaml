@@ -1,0 +1,28 @@
+title: Classification — one shared rule set whose triggers never overlap
+
+# Every rule has its own trigger words, so a case only hits the rules it means to.
+# The suite runs next to the department's real policy, so triggers also avoid its
+# words: hóa đơn / thuế / phí / số tiền, "quý 1"/"quý 2", and long digit runs.
+
+# Created in the console for the run and deleted after it.
+document_types:
+  - code: uat-finance
+    name: UAT Tài chính
+  - code: uat-hr
+    name: UAT Nhân sự
+
+policies:
+  - name: UAT classification keyword
+    conditions:
+      - name: UAT nội bộ          # 01, 02
+        secrecy: confidential
+        keyword: nội bộ
+      - name: UAT tuyệt mật       # 01
+        secrecy: secret
+        keyword: tuyệt mật
+      - name: UAT phiếu chi       # 02
+        document_type: uat-finance
+        keyword: phiếu chi
+      - name: UAT bảng lương      # 02
+        document_type: uat-hr
+        keyword: bảng lương

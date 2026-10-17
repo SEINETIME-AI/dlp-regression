@@ -1,0 +1,6 @@
+title: A file matching two secrecy rules gets the higher level
+
+expected:
+  thong-bao.docx:
+    secrecy: secret          # "nội bộ" (confidential) and "tuyệt mật" (secret)
+    domains: []
