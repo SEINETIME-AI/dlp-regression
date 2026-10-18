@@ -5,3 +5,5 @@ __pycache__/
 .pytest_cache/
 test-results/
 playwright-report/
+# Office lock files from opening a document in data/
+~$*

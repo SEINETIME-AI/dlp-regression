@@ -28,6 +28,7 @@ document_types:
   - {code: uat-tuyen-dung, name: UAT Tuyển dụng}
   - {code: uat-nong-san, name: UAT Nông sản}
   - {code: uat-kiem-ke, name: UAT Kiểm kê}
+  - {code: uat-dau-moc, name: UAT Dấu mộc}
 
 # Types a correct agent never assigns here; the coverage check skips them
 # (negative_secrecy does the same for secrecy levels).
@@ -111,6 +112,16 @@ policies:
         embedding:
           descriptions: ["Tuyển dụng nhân sự: phỏng vấn ứng viên, thư mời nhận việc và chế độ đãi ngộ cho vị trí mới."]
           threshold: 0.6
+
+  # TC-H-01. Only one stamp rule reaches the agent: when policies merge, the one
+  # with the highest threshold wins, so 0.8 beats the real policy's 0.75 while
+  # staying below what the model gives this suite's synthetic stamp (~0.93).
+  - name: UAT dấu mộc
+    conditions:
+      - name: UAT dấu mộc đỏ
+        secrecy: secret
+        document_type: uat-dau-moc
+        stamp: {threshold: 0.8}
 
   - name: UAT hybrid
     conditions:

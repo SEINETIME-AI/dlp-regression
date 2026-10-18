@@ -14,7 +14,7 @@ from make_docx import write_docx
 from make_pptx import write_pptx
 from make_xlsx import write_xlsx
 from make_broken import write_corrupt_docx, write_password_docx
-from make_media import text_image, write_png, write_scanned_pdf, write_text_pdf
+from make_media import round_stamp, write_stamped_scan, text_image, write_png, write_scanned_pdf, write_text_pdf
 
 DATA = Path(__file__).resolve().parent.parent / "data"
 
@@ -125,6 +125,13 @@ FILES = {
         "Bảng lương khối văn phòng",
         "Tài liệu lưu hành nội bộ (dữ liệu giả lập)",
     ]),
+    # TC-H-01: the stamp is the only signal; no keyword of the suite is on the page.
+    "classification/32-scanned-stamp/ban-giao-co-dau.pdf": lambda p: write_stamped_scan(p, "BIÊN BẢN BÀN GIAO", [
+        "Hôm nay, hai bên tiến hành bàn giao thiết bị văn phòng.",
+        "Bên nhận đã kiểm tra số lượng và tình trạng thiết bị.",
+        "Biên bản được lập thành hai bản có giá trị như nhau.",
+        "(dữ liệu giả lập)",
+    ], round_stamp(360, "CÔNG TY TNHH THỬ NGHIỆM UAT * HÀ NỘI * ", "MẬT")),
     "classification/13-keyword-and-pattern/ho-so.docx": lambda p: write_docx(p, [
         "Hồ sơ khởi động, mã dự án DA-KHCN.",
         "Phạm vi: chuẩn hóa quy trình tiếp nhận yêu cầu (dữ liệu giả lập).",

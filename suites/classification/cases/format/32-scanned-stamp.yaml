@@ -1,0 +1,6 @@
+title: A red stamp on a scanned page, with no text layer, raises secrecy and sets the type (TC-H-01)
+
+expected:
+  ban-giao-co-dau.pdf:
+    secrecy: secret
+    domains: [uat-dau-moc]

@@ -49,7 +49,7 @@ start the service, run the suites, then put the backup back (all as administrato
 
 | Suite | What it covers | Customer tests |
 |---|---|---|
-| `classification` | Every technique on, as in a real policy (31 cases): keyword secrecy and document types, AND of two keywords, `min_count`, regex; semantic rules with their own thresholds; weighted dictionary (thresholds, repeated and distant terms, no synonyms); hybrid rules; the file formats (PDF text and scanned, PNG, DOCX with an embedded image, PPTX, XLSX, password-protected and corrupt DOCX). Grouped in `cases/keyword`, `cases/semantic`, `cases/dictionary`, `cases/hybrid` and `cases/format`. | TC-A-01..06, TC-B-01..04, TC-C-01..06, TC-E-01..06, TC-F-04/05, TC-H-02, TC-H-05 |
+| `classification` | Every technique on, as in a real policy (32 cases): keyword secrecy and document types, AND of two keywords, `min_count`, regex; semantic rules with their own thresholds; weighted dictionary (thresholds, repeated and distant terms, no synonyms); hybrid rules; the file formats (PDF text and scanned, PNG, DOCX with an embedded image, PPTX, XLSX, password-protected and corrupt DOCX); a red stamp on a scanned page. Grouped in `cases/keyword`, `cases/semantic`, `cases/dictionary`, `cases/hybrid` and `cases/format`. | TC-A-01..06, TC-B-01..04, TC-C-01..06, TC-E-01..06, TC-F-04/05, TC-H-01, TC-H-02, TC-H-05 |
 | `mode` | The classification techniques a policy runs: two policies with different techniques, each with keyword, dictionary and semantic conditions that all match the same file. Only the selected techniques may assign a type; a switched-off keyword secrecy rule must not run. | TC-D-01..03 |
 
 Setting rules up and tearing them down is the slow part (console work plus the
@@ -95,6 +95,9 @@ policies:                        # names must start with "UAT "
       - name: UAT ngữ nghĩa
         document_type: uat-finance
         embedding: {descriptions: ["…"], threshold: 0.6}
+      - name: UAT dấu mộc
+        secrecy: secret
+        stamp: {threshold: 0.8}          # one stamp rule reaches the agent: the highest threshold wins the merge
       - name: UAT hybrid
         document_type: uat-finance
         hybrid:
@@ -159,7 +162,7 @@ tools/make_data.py         regenerates the synthetic documents (--force to rewri
 tools/make_docx.py         minimal .docx, optionally with embedded images
 tools/make_pptx.py         .pptx with slides, a table and speaker notes (python-pptx)
 tools/make_xlsx.py         minimal .xlsx (one sheet, shared strings)
-tools/make_media.py        PNG images and text / scanned PDFs
+tools/make_media.py        PNG images, text / scanned PDFs, a synthetic red stamp on a scanned page
 tools/make_broken.py       password-protected and corrupt .docx
 ```
 

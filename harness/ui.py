@@ -110,6 +110,12 @@ class AdminConsole:
                 self.fill_dictionary(card, condition["dictionary"])
             elif "embedding" in condition:
                 self.fill_embedding(card, condition["embedding"])
+            elif "stamp" in condition:
+                self.pick(card.get_by_role("combobox", name="Kỹ thuật nhận diện"), "Dấu mộc")
+                if "threshold" in condition["stamp"]:
+                    # Required field: its label ends with " *".
+                    card.get_by_role("spinbutton", name=re.compile("^Ngưỡng tin cậy dấu mộc")).fill(
+                        str(condition["stamp"]["threshold"]))
             else:  # keyword technique: one keyword or regex matcher, optionally "≥ N times"
                 if "regex" in condition:
                     self.pick(card.get_by_role("combobox", name="Loại", exact=True), "regex")

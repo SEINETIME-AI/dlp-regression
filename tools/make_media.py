@@ -1,8 +1,9 @@
 """Synthetic PDFs and images for the format cases. Content is invented."""
 import io
+import math
 
 from fpdf import FPDF
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 FONT = r"C:\Windows\Fonts\arial.ttf"  # has the Vietnamese glyphs
 
@@ -44,3 +45,48 @@ def write_scanned_pdf(path: str, lines: list[str]):
     pdf.add_page()
     pdf.image(io.BytesIO(text_image(lines, size=(1600, 500))), x=10, y=20, w=190)
     pdf.output(path)
+
+
+STAMP_RED = (200, 30, 35)
+BOLD_FONT = FONT.replace("arial.ttf", "arialbd.ttf")
+
+
+def round_stamp(diameter: int, ring_text: str, center_text: str) -> Image.Image:
+    """A red company stamp: two rings, text around the outer one, a word in the middle."""
+    img = Image.new("RGBA", (diameter, diameter), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    r = diameter // 2
+    draw.ellipse((4, 4, diameter - 4, diameter - 4), outline=STAMP_RED, width=max(6, diameter // 45))
+    inner = int(r * 0.62)
+    draw.ellipse((r - inner, r - inner, r + inner, r + inner), outline=STAMP_RED, width=max(3, diameter // 90))
+    ring_font = ImageFont.truetype(BOLD_FONT, max(14, diameter // 14))
+    for i, char in enumerate(ring_text):
+        angle = -math.pi / 2 + 2 * math.pi * i / len(ring_text)
+        glyph = Image.new("RGBA", (diameter // 8, diameter // 8), (0, 0, 0, 0))
+        ImageDraw.Draw(glyph).text((diameter // 32, diameter // 64), char, fill=STAMP_RED, font=ring_font)
+        glyph = glyph.rotate(-math.degrees(angle) - 90, resample=Image.BICUBIC)
+        x, y = r + r * 0.80 * math.cos(angle), r + r * 0.80 * math.sin(angle)
+        img.alpha_composite(glyph, (int(x - glyph.width / 2), int(y - glyph.height / 2)))
+    center_font = ImageFont.truetype(BOLD_FONT, max(18, diameter // 7))
+    width = draw.textlength(center_text, font=center_font)
+    draw.text((r - width / 2, r - diameter // 14), center_text, fill=STAMP_RED, font=center_font)
+    return img.filter(ImageFilter.GaussianBlur(0.6))  # ink edges, as on a scan
+
+
+def write_stamped_scan(path: str, title: str, lines: list[str], stamp: Image.Image):
+    """A scanned A4 page (image only, no text layer) with a signature block and a stamp on it."""
+    page = Image.new("RGB", (1654, 2339), "white")
+    draw = ImageDraw.Draw(page)
+    draw.text((500, 160), title, fill="black", font=ImageFont.truetype(BOLD_FONT, 44))
+    body = ImageFont.truetype(FONT, 34)
+    for i, line in enumerate(lines):
+        draw.text((150, 320 + i * 70), line, fill="black", font=body)
+    draw.text((1050, 1500), "ĐẠI DIỆN BÊN GIAO", fill="black", font=body)
+    page.paste(stamp, (1000, 1650), stamp)
+    image = io.BytesIO()
+    page.save(image, "PNG")
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.image(io.BytesIO(image.getvalue()), x=0, y=0, w=210)
+    pdf.output(path)
+
