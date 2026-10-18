@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 from make_docx import write_docx
+from make_pptx import write_pptx
 from make_media import text_image, write_png, write_scanned_pdf, write_text_pdf
 
 DATA = Path(__file__).resolve().parent.parent / "data"
@@ -43,6 +44,11 @@ FILES = {
     "classification/07-docx-embedded-image/bien-ban.docx": lambda p: write_docx(
         p, ["Biên bản giao nhận thiết bị (dữ liệu giả lập)."],
         media={"image1.png": text_image(["lưu hành nội bộ"])}),
+    # Each trigger sits in a different place a deck keeps text: body, table, notes.
+    "classification/08-pptx-slides/trinh-chieu.pptx": lambda p: write_pptx(p, [
+        ("Kế hoạch quý tới", ["Tổng hợp phiếu chi văn phòng (dữ liệu giả lập)."], []),
+        ("Phân bổ nhân sự", [], [["Hạng mục", "Ghi chú"], ["Bảng lương", "Khối kỹ thuật"]]),
+    ], notes="Tài liệu lưu hành nội bộ."),
 
     "hybrid/01-keyword-and-pattern/ho-so.docx": lambda p: write_docx(p, [
         "Hồ sơ khởi động, mã dự án DA-KHCN.",

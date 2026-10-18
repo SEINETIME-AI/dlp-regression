@@ -11,9 +11,9 @@ document_types:
   - code: uat-hr
     name: UAT Nhân sự
 
-# The UI form starts with .pdf/.docx/.xlsx; the format cases also need images.
+# The UI form starts with .pdf/.docx/.xlsx; the format cases also need images and slides.
 data_source:
-  extra_extensions: [.png]
+  extra_extensions: [.png, .pptx]
 
 policies:
   - name: UAT classification keyword

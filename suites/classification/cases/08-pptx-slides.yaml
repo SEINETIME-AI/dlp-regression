@@ -1,0 +1,6 @@
+title: A PowerPoint deck is classified from its slides, tables and notes
+
+expected:
+  trinh-chieu.pptx:
+    secrecy: confidential            # "nội bộ" in the speaker notes
+    domains: [uat-finance, uat-hr]   # "phiếu chi" in a slide body, "bảng lương" in a table
