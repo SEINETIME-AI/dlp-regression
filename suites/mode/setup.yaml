@@ -1,0 +1,69 @@
+title: Classification method — each policy's document types come only from its own technique
+
+# Customer tests TC-D-01..03. Three policies in the same department, one per
+# method, each with a keyword, a dictionary and a semantic condition that all
+# match the same file. The condition of the policy's own technique assigns a
+# "-on" type, the two others a "-off" type: any "-off" type in the result
+# means a technique ran that the method should have switched off. Running the
+# three side by side also checks that each policy keeps its own method when
+# the agent receives them merged.
+# Topic (fire drill) stays clear of the department's real policy and the
+# other suites' triggers.
+
+document_types:
+  - {code: uat-mode-kw-on, name: UAT Mode từ khóa (đúng)}
+  - {code: uat-mode-kw-off, name: UAT Mode từ khóa (sai)}
+  - {code: uat-mode-dict-on, name: UAT Mode từ điển (đúng)}
+  - {code: uat-mode-dict-off, name: UAT Mode từ điển (sai)}
+  - {code: uat-mode-ml-on, name: UAT Mode ngữ nghĩa (đúng)}
+  - {code: uat-mode-ml-off, name: UAT Mode ngữ nghĩa (sai)}
+
+policies:
+  - name: UAT mode keyword
+    classification_method: keyword
+    conditions:
+      - name: UAT keyword từ khóa
+        document_type: uat-mode-kw-on
+        keyword: diễn tập phòng cháy
+      - name: UAT keyword từ điển
+        document_type: uat-mode-dict-off
+        dictionary:
+          terms: {bình chữa cháy: 0.5, lối thoát hiểm: 0.5}
+          threshold: 1
+      - name: UAT keyword ngữ nghĩa
+        document_type: uat-mode-ml-off
+        embedding:
+          descriptions: ["Kế hoạch diễn tập phòng cháy chữa cháy và hướng dẫn thoát hiểm tại tòa nhà văn phòng"]
+          threshold: 0.6
+  - name: UAT mode dictionary
+    classification_method: dictionary
+    conditions:
+      - name: UAT dictionary từ khóa
+        document_type: uat-mode-kw-off
+        keyword: diễn tập phòng cháy
+      - name: UAT dictionary từ điển
+        document_type: uat-mode-dict-on
+        dictionary:
+          terms: {bình chữa cháy: 0.5, lối thoát hiểm: 0.5}
+          threshold: 1
+      - name: UAT dictionary ngữ nghĩa
+        document_type: uat-mode-ml-off
+        embedding:
+          descriptions: ["Kế hoạch diễn tập phòng cháy chữa cháy và hướng dẫn thoát hiểm tại tòa nhà văn phòng"]
+          threshold: 0.6
+  - name: UAT mode embedding
+    classification_method: embedding
+    conditions:
+      - name: UAT embedding từ khóa
+        document_type: uat-mode-kw-off
+        keyword: diễn tập phòng cháy
+      - name: UAT embedding từ điển
+        document_type: uat-mode-dict-off
+        dictionary:
+          terms: {bình chữa cháy: 0.5, lối thoát hiểm: 0.5}
+          threshold: 1
+      - name: UAT embedding ngữ nghĩa
+        document_type: uat-mode-ml-on
+        embedding:
+          descriptions: ["Kế hoạch diễn tập phòng cháy chữa cháy và hướng dẫn thoát hiểm tại tòa nhà văn phòng"]
+          threshold: 0.6

@@ -73,8 +73,11 @@ class AdminConsole:
         expect(dialog).to_be_hidden()
 
     # ── Classification policy ────────────────────────────────────────────────
+    _METHODS = {"all": "Tất cả kỹ thuật", "keyword": "Từ khóa / Regex", "embedding": "Ngữ nghĩa (ML)",
+                "dictionary": "Từ điển có trọng số", "hybrid": "Hybrid"}
+
     def create_policy(self, name: str, company: str, department: str, conditions: list[dict],
-                      secrecy_names: dict, type_names: dict):
+                      secrecy_names: dict, type_names: dict, method: str | None = None):
         self.open("/classification-policies")
         self.page.get_by_role("button", name="Chính sách mới", exact=True).click()
         form = self.page.get_by_role("dialog", name=re.compile("^Chính sách phân loại mới"))
@@ -104,11 +107,15 @@ class AdminConsole:
                 self.fill_hybrid(card, condition["hybrid"])
             elif "dictionary" in condition:
                 self.fill_dictionary(card, condition["dictionary"])
+            elif "embedding" in condition:
+                self.fill_embedding(card, condition["embedding"])
             else:
                 card.get_by_label(re.compile("^Giá trị")).first.fill(condition["keyword"])
         # "Lưu điều kiện" for one condition, "Lưu N điều kiện" for more.
         editor.get_by_role("button", name=re.compile(r"^Lưu( \d+)? điều kiện$")).click()
         expect(editor).to_be_hidden()
+        if method:  # picked on the conditions tab, above the list
+            form.get_by_role("button", name=self._METHODS[method], exact=True).click()
         form.get_by_role("button", name="Tạo chính sách", exact=True).click()
         expect(form).to_be_hidden()
 
@@ -125,6 +132,17 @@ class AdminConsole:
             card.get_by_label("Trọng số", exact=True).nth(index).fill(str(weight))
         if "threshold" in spec:
             card.get_by_label("Ngưỡng kích hoạt", exact=True).fill(str(spec["threshold"]))
+
+    def fill_embedding(self, card, spec: dict):
+        """Semantic (ML) condition: descriptions and an optional similarity threshold."""
+        self.pick(card.get_by_role("combobox", name="Kỹ thuật nhận diện"), "Ngữ nghĩa (ML)")
+        for index, description in enumerate(spec["descriptions"]):
+            if index > 0:
+                card.get_by_role("button", name="Thêm mô tả", exact=True).click()
+            # Required field: its label ends with " *".
+            card.get_by_label(re.compile(rf"^Mô tả #{index + 1}")).fill(description)
+        if "threshold" in spec:
+            card.get_by_label("Ngưỡng tương đồng", exact=True).fill(str(spec["threshold"]))
 
     def fill_hybrid(self, card, spec: dict):
         """Sub-conditions are appended at the end, so each one's fields are the last of their kind."""

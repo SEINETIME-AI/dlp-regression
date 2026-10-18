@@ -1,0 +1,6 @@
+title: Only the "-on" type of each policy's own technique is assigned
+
+expected:
+  dien-tap.docx:
+    secrecy: public
+    domains: [uat-mode-dict-on, uat-mode-kw-on, uat-mode-ml-on]

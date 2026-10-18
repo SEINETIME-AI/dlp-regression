@@ -1,0 +1,6 @@
+title: A file that matches none of the conditions gets no document type
+
+expected:
+  thuc-don.docx:
+    secrecy: public
+    domains: []

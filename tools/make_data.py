@@ -66,6 +66,14 @@ FILES = {
     "dictionary/02-one-term-below/bien-nhan.docx": lambda p: write_docx(p, [
         "Bộ phận lễ tân đã ký biên nhận bưu phẩm (dữ liệu giả lập).",
     ]),
+    # Every condition of every mode policy matches this one.
+    "mode/01-each-policy-its-own-technique/dien-tap.docx": lambda p: write_docx(p, [
+        "Kế hoạch diễn tập phòng cháy chữa cháy và hướng dẫn thoát hiểm tại tòa nhà văn phòng.",
+        "Buổi diễn tập phòng cháy kiểm tra bình chữa cháy và lối thoát hiểm ở mỗi tầng (dữ liệu giả lập).",
+    ]),
+    "mode/02-other-text-matches-nothing/thuc-don.docx": lambda p: write_docx(p, [
+        "Thực đơn bữa trưa tuần sau của căng tin gồm cơm gà, canh rau và trái cây (dữ liệu giả lập).",
+    ]),
     "hybrid/01-keyword-and-pattern/ho-so.docx": lambda p: write_docx(p, [
         "Hồ sơ khởi động, mã dự án DA-KHCN.",
         "Phạm vi: chuẩn hóa quy trình tiếp nhận yêu cầu (dữ liệu giả lập).",
