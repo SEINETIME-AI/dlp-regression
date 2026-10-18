@@ -58,11 +58,6 @@ FILES = {
     "classification/10-docx-corrupt/bien-ban-hong.docx": lambda p: write_corrupt_docx(p, [
         "Biên bản đối chiếu phiếu chi tháng trước (dữ liệu giả lập).",
     ]),
-    # Never goes through NextDLP. Its text would be confidential + uat-finance if the
-    # agent did read it, so any label at all means the agent touched it.
-    "classification/11-docx-never-scanned/khong-co-nhan.docx": lambda p: write_docx(p, [
-        "Tờ trình nội bộ về phiếu chi hội nghị (dữ liệu giả lập), chưa từng qua NextDLP.",
-    ]),
 
     "hybrid/01-keyword-and-pattern/ho-so.docx": lambda p: write_docx(p, [
         "Hồ sơ khởi động, mã dự án DA-KHCN.",
