@@ -12,6 +12,7 @@ from pathlib import Path
 
 from make_docx import write_docx
 from make_pptx import write_pptx
+from make_broken import write_corrupt_docx, write_password_docx
 from make_media import text_image, write_png, write_scanned_pdf, write_text_pdf
 
 DATA = Path(__file__).resolve().parent.parent / "data"
@@ -49,6 +50,14 @@ FILES = {
         ("Kế hoạch quý tới", ["Tổng hợp phiếu chi văn phòng (dữ liệu giả lập)."], []),
         ("Phân bổ nhân sự", [], [["Hạng mục", "Ghi chú"], ["Bảng lương", "Khối kỹ thuật"]]),
     ], notes="Tài liệu lưu hành nội bộ."),
+    # Files the agent cannot read: it must report them confidential, never public.
+    # Their text would match uat-finance if it could be read.
+    "classification/09-docx-password/hop-dong-khoa.docx": lambda p: write_password_docx(p, [
+        "Hợp đồng kèm phiếu chi tạm ứng (dữ liệu giả lập).",
+    ]),
+    "classification/10-docx-corrupt/bien-ban-hong.docx": lambda p: write_corrupt_docx(p, [
+        "Biên bản đối chiếu phiếu chi tháng trước (dữ liệu giả lập).",
+    ]),
 
     "hybrid/01-keyword-and-pattern/ho-so.docx": lambda p: write_docx(p, [
         "Hồ sơ khởi động, mã dự án DA-KHCN.",

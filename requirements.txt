@@ -5,3 +5,4 @@ pypdf==6.21.1
 fpdf2==2.8.9
 pillow==13.0.0
 python-pptx==1.0.2
+msoffcrypto-tool==6.0.0

@@ -72,11 +72,12 @@ class Case:
 
     def labels(self) -> dict | None:
         labels = {}
-        for name in self.expected:
+        for name, expected in self.expected.items():
             path = self.root / name
+            # `result_from: backend` for a file the agent cannot label (encrypted, broken).
+            from_backend = expected.get("result_from") == "backend" or path.suffix.lower() not in LABELED_SUFFIXES
             try:
-                labels[name] = (embedded_label(path) if path.suffix.lower() in LABELED_SUFFIXES
-                                else self.backend_result(path))
+                labels[name] = self.backend_result(path) if from_backend else embedded_label(path)
             except Exception:  # noqa: BLE001 — the agent may be rewriting the file right now
                 labels[name] = None
         return labels if all(labels.values()) else None

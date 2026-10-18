@@ -23,8 +23,11 @@ def embedded_label(path: Path) -> dict | None:
     if path.suffix.lower() == ".pdf":
         info = PdfReader(path).metadata or {}
         return _label({key.lstrip("/"): str(value) for key, value in info.items()})
-    with zipfile.ZipFile(path) as archive:
-        if "docProps/custom.xml" not in archive.namelist():
-            return None
-        xml = archive.read("docProps/custom.xml").decode("utf-8")
+    try:
+        with zipfile.ZipFile(path) as archive:
+            if "docProps/custom.xml" not in archive.namelist():
+                return None
+            xml = archive.read("docProps/custom.xml").decode("utf-8")
+    except zipfile.BadZipFile:  # password-protected (OLE) or broken: it cannot carry a label
+        return None
     return _label(dict(_PROPERTY.findall(xml)))
