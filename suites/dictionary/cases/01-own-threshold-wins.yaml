@@ -1,0 +1,6 @@
+title: Two terms (0.4 + 0.4) reach the rule's own 0.8 but not the default 1.0
+
+expected:
+  kho-van.docx:
+    secrecy: public
+    domains: [uat-dict-own]   # not uat-dict-default: 0.8 < 1.0

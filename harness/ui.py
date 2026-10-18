@@ -102,6 +102,8 @@ class AdminConsole:
                 expect(self.page.get_by_role("tree")).to_be_hidden()
             if "hybrid" in condition:
                 self.fill_hybrid(card, condition["hybrid"])
+            elif "dictionary" in condition:
+                self.fill_dictionary(card, condition["dictionary"])
             else:
                 card.get_by_label(re.compile("^Giá trị")).first.fill(condition["keyword"])
         # "Lưu điều kiện" for one condition, "Lưu N điều kiện" for more.
@@ -112,6 +114,17 @@ class AdminConsole:
 
     _COMBINATORS = {"all": "Tất cả điều kiện", "any": "Bất kỳ điều kiện nào"}
     _SUB_TYPES = {"keyword": "Từ khóa", "data_pattern": "Mẫu dữ liệu (regex)", "wordlist": "Danh sách từ"}
+
+    def fill_dictionary(self, card, spec: dict):
+        """Weighted terms; `threshold` left out keeps the field empty (the agent's default applies)."""
+        self.pick(card.get_by_role("combobox", name="Kỹ thuật nhận diện"), "Từ điển có trọng số")
+        for index, (term, weight) in enumerate(spec["terms"].items()):
+            if index > 0:  # the form starts with one empty row
+                card.get_by_role("button", name="Thêm từ ngữ", exact=True).click()
+            card.get_by_label("Từ ngữ", exact=True).nth(index).fill(term)
+            card.get_by_label("Trọng số", exact=True).nth(index).fill(str(weight))
+        if "threshold" in spec:
+            card.get_by_label("Ngưỡng kích hoạt", exact=True).fill(str(spec["threshold"]))
 
     def fill_hybrid(self, card, spec: dict):
         """Sub-conditions are appended at the end, so each one's fields are the last of their kind."""

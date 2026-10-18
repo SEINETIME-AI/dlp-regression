@@ -59,6 +59,13 @@ FILES = {
         "Biên bản đối chiếu phiếu chi tháng trước (dữ liệu giả lập).",
     ]),
 
+    "dictionary/01-own-threshold-wins/kho-van.docx": lambda p: write_docx(p, [
+        "Đã lập phiếu xuất kho cho lô vật tư tuần này.",
+        "Kèm biên nhận của bộ phận giao hàng (dữ liệu giả lập).",
+    ]),
+    "dictionary/02-one-term-below/bien-nhan.docx": lambda p: write_docx(p, [
+        "Bộ phận lễ tân đã ký biên nhận bưu phẩm (dữ liệu giả lập).",
+    ]),
     "hybrid/01-keyword-and-pattern/ho-so.docx": lambda p: write_docx(p, [
         "Hồ sơ khởi động, mã dự án DA-KHCN.",
         "Phạm vi: chuẩn hóa quy trình tiếp nhận yêu cầu (dữ liệu giả lập).",

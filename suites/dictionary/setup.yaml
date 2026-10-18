@@ -1,0 +1,25 @@
+title: Dictionary — a rule's own threshold overrides the agent's default
+
+# Customer test TC-C-05. Both rules have the same two terms at 0.4 each, so a
+# file with both scores 0.8. The first rule sets its own threshold 0.8; the
+# second leaves it empty, so the agent's default (1.0, agent.conf) applies.
+# Terms avoid the department's real policy and the other suites' triggers.
+
+document_types:
+  - code: uat-dict-own
+    name: UAT Ngưỡng riêng
+  - code: uat-dict-default
+    name: UAT Ngưỡng mặc định
+
+policies:
+  - name: UAT dictionary
+    conditions:
+      - name: UAT ngưỡng riêng 0.8
+        document_type: uat-dict-own
+        dictionary:
+          terms: {phiếu xuất kho: 0.4, biên nhận: 0.4}
+          threshold: 0.8
+      - name: UAT ngưỡng mặc định
+        document_type: uat-dict-default
+        dictionary:
+          terms: {phiếu xuất kho: 0.4, biên nhận: 0.4}
