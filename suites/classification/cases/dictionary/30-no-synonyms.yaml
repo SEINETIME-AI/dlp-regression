@@ -1,0 +1,6 @@
+title: Synonyms of the terms are not matched (TC-C-06)
+
+expected:
+  nong-nghiep.docx:
+    secrecy: public
+    domains: []

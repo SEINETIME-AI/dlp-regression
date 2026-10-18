@@ -5,7 +5,8 @@ title: Classification — every technique on, one shared rule set
 # case lists its exact result, so a rule that also fired on another case's file
 # fails that case instead of hiding. Triggers avoid the department's real policy:
 # hóa đơn / thuế / phí / số tiền, "quý 1"/"quý 2", and long digit runs.
-# Cases are grouped by what they cover: keyword/, format/, dictionary/, hybrid/.
+# Cases are grouped by what they cover: keyword/, format/, dictionary/, hybrid/,
+# semantic/. Most cases cite the customer test (TC-…) they automate.
 
 # Created in the console for the run and deleted after it.
 document_types:
@@ -19,10 +20,18 @@ document_types:
     name: UAT Ngưỡng mặc định
   - code: uat-project
     name: UAT Dự án
+  - {code: uat-dieu-dong, name: UAT Điều động}
+  - {code: uat-chung-chi, name: UAT Chứng chỉ}
+  - {code: uat-ma-nv, name: UAT Mã nhân viên}
+  - {code: uat-cong-no, name: UAT Công nợ}
+  - {code: uat-cong-no-strict, name: UAT Công nợ (ngưỡng 0.85)}
+  - {code: uat-tuyen-dung, name: UAT Tuyển dụng}
+  - {code: uat-nong-san, name: UAT Nông sản}
+  - {code: uat-kiem-ke, name: UAT Kiểm kê}
 
 # Types a correct agent never assigns here; the coverage check skips them
 # (negative_secrecy does the same for secrecy levels).
-negative_document_types: [uat-dict-default]
+negative_document_types: [uat-dict-default, uat-cong-no-strict]
 
 # The UI form starts with .pdf/.docx/.xlsx; the format cases also need images and slides.
 data_source:
@@ -43,6 +52,15 @@ policies:
       - name: UAT bảng lương
         document_type: uat-hr
         keyword: bảng lương
+      # TC-A-03/04: the keyword must appear at least twice.
+      - name: UAT chứng chỉ ≥ 2 lần
+        document_type: uat-chung-chi
+        keyword: chứng chỉ
+        min_count: 2
+      # TC-A-05: a regex matcher (an employee code; the real policy owns 9/10/12-digit numbers).
+      - name: UAT mã nhân viên
+        document_type: uat-ma-nv
+        regex: '\bNV-\d{5}\b'
 
   # Customer test TC-C-05. Same two terms at 0.4 each, so a file with both
   # scores 0.8: the first rule's own threshold 0.8 is reached, the second
@@ -58,6 +76,41 @@ policies:
         document_type: uat-dict-default
         dictionary:
           terms: {phiếu xuất kho: 0.4, biên nhận: 0.4}
+      # TC-C-01/03/04/06: two weak terms (0.5 each) reach 1.0 together; a repeated
+      # term counts once; distance does not matter; synonyms are not matched.
+      - name: UAT nông sản
+        document_type: uat-nong-san
+        dictionary:
+          terms: {hợp tác xã: 0.5, nông sản: 0.5}
+          threshold: 1
+      # TC-C-02: one strong term (1.0) is enough on its own.
+      - name: UAT kiểm kê
+        document_type: uat-kiem-ke
+        dictionary:
+          terms: {báo cáo kiểm kê: 1}
+          threshold: 1
+
+  # TC-B-01..04. Thresholds are the rule's own: on this suite's files the target
+  # text scores ~0.72-0.75 and every other file at most ~0.43, so 0.6 separates
+  # them; the agent default 0.4 would not.
+  - name: UAT semantic
+    conditions:
+      - name: UAT công nợ
+        document_type: uat-cong-no
+        embedding:
+          descriptions: ["Thanh toán công nợ của khách hàng: tất toán khoản nợ tồn đọng và đối chiếu số dư phải thu."]
+          threshold: 0.6
+      # Same description, own threshold 0.85 above the ~0.75 score: must not fire.
+      - name: UAT công nợ (ngưỡng 0.85)
+        document_type: uat-cong-no-strict
+        embedding:
+          descriptions: ["Thanh toán công nợ của khách hàng: tất toán khoản nợ tồn đọng và đối chiếu số dư phải thu."]
+          threshold: 0.85
+      - name: UAT tuyển dụng
+        document_type: uat-tuyen-dung
+        embedding:
+          descriptions: ["Tuyển dụng nhân sự: phỏng vấn ứng viên, thư mời nhận việc và chế độ đãi ngộ cho vị trí mới."]
+          threshold: 0.6
 
   - name: UAT hybrid
     conditions:
@@ -76,3 +129,11 @@ policies:
           combinator: all
           conditions:
             - wordlist: [sơ đồ mạng, tường lửa, máy chủ]
+      # TC-A-01/02: two keywords that must both be present (keyword matchers alone are OR).
+      - name: UAT lệnh điều động
+        document_type: uat-dieu-dong
+        hybrid:
+          combinator: all
+          conditions:
+            - keyword: lệnh điều động
+            - keyword: xe công vụ

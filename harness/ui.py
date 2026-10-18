@@ -100,7 +100,8 @@ class AdminConsole:
                 self.pick(card.get_by_role("combobox", name="Mức bảo mật"), secrecy_names[condition["secrecy"]])
             if condition.get("document_type"):
                 card.get_by_role("combobox", name="Loại tài liệu").click()
-                self.page.get_by_role("treeitem", name=type_names[condition["document_type"]]).click()
+                # Exact: "UAT Công nợ" must not also match "UAT Công nợ (ngưỡng 0.85)".
+                self.page.get_by_role("treeitem", name=type_names[condition["document_type"]], exact=True).click()
                 # The picker closes itself on select; an Escape here would close the editor instead.
                 expect(self.page.get_by_role("tree")).to_be_hidden()
             if "hybrid" in condition:
@@ -109,8 +110,12 @@ class AdminConsole:
                 self.fill_dictionary(card, condition["dictionary"])
             elif "embedding" in condition:
                 self.fill_embedding(card, condition["embedding"])
-            else:
-                card.get_by_label(re.compile("^Giá trị")).first.fill(condition["keyword"])
+            else:  # keyword technique: one keyword or regex matcher, optionally "≥ N times"
+                if "regex" in condition:
+                    self.pick(card.get_by_role("combobox", name="Loại", exact=True), "regex")
+                card.get_by_label(re.compile("^Giá trị")).first.fill(condition.get("regex") or condition["keyword"])
+                if "min_count" in condition:
+                    card.get_by_label("Số lần ≥", exact=True).first.fill(str(condition["min_count"]))
         # "Lưu điều kiện" for one condition, "Lưu N điều kiện" for more.
         editor.get_by_role("button", name=re.compile(r"^Lưu( \d+)? điều kiện$")).click()
         expect(editor).to_be_hidden()

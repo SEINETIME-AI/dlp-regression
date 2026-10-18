@@ -1,0 +1,6 @@
+title: A regex matcher (employee code NV-12345) assigns its type (TC-A-05)
+
+expected:
+  ma-nhan-vien.docx:
+    secrecy: public
+    domains: [uat-ma-nv]

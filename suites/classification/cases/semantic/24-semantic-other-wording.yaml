@@ -1,0 +1,6 @@
+title: Recruitment worded differently from the description (TC-B-02)
+
+expected:
+  tuyen-dung.docx:
+    secrecy: public
+    domains: [uat-tuyen-dung]

@@ -1,0 +1,6 @@
+title: Terms far apart in the document still add up (TC-C-04)
+
+expected:
+  nong-san-xa.docx:
+    secrecy: public
+    domains: [uat-nong-san]

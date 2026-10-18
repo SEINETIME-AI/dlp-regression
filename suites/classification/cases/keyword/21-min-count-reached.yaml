@@ -1,0 +1,6 @@
+title: A keyword needed twice appears twice, type assigned (TC-A-04)
+
+expected:
+  chung-chi-hai.docx:
+    secrecy: public
+    domains: [uat-chung-chi]

@@ -49,7 +49,7 @@ start the service, run the suites, then put the backup back (all as administrato
 
 | Suite | What it covers | Customer tests |
 |---|---|---|
-| `classification` | Every technique on, as in a real policy: keyword / regex secrecy and document types, the file formats (PDF text and scanned, PNG, DOCX with an embedded image, PPTX, password-protected and corrupt DOCX), weighted dictionary thresholds, hybrid rules (keyword AND data pattern, wordlist). Cases are grouped in `cases/keyword`, `cases/format`, `cases/dictionary` and `cases/hybrid`. | TC-C-05, TC-E-03, TC-F-04, TC-F-05 |
+| `classification` | Every technique on, as in a real policy (31 cases): keyword secrecy and document types, AND of two keywords, `min_count`, regex; semantic rules with their own thresholds; weighted dictionary (thresholds, repeated and distant terms, no synonyms); hybrid rules; the file formats (PDF text and scanned, PNG, DOCX with an embedded image, PPTX, XLSX, password-protected and corrupt DOCX). Grouped in `cases/keyword`, `cases/semantic`, `cases/dictionary`, `cases/hybrid` and `cases/format`. | TC-A-01..06, TC-B-01..04, TC-C-01..06, TC-E-01..06, TC-F-04/05, TC-H-02, TC-H-05 |
 | `mode` | The classification techniques a policy runs: two policies with different techniques, each with keyword, dictionary and semantic conditions that all match the same file. Only the selected techniques may assign a type; a switched-off keyword secrecy rule must not run. | TC-D-01..03 |
 
 Setting rules up and tearing them down is the slow part (console work plus the
@@ -85,6 +85,10 @@ policies:                        # names must start with "UAT "
       - name: UAT phiếu chi
         secrecy: confidential            # and/or document_type: uat-finance
         keyword: phiếu chi
+        min_count: 2                     # optional: the keyword must appear at least twice
+      - name: UAT mã nhân viên
+        document_type: uat-finance
+        regex: '\bNV-\d{5}\b'           # a regex matcher instead of a keyword
       - name: UAT từ điển
         document_type: uat-finance
         dictionary: {terms: {phiếu xuất kho: 0.4, biên nhận: 0.4}, threshold: 0.8}  # threshold optional
@@ -112,6 +116,9 @@ expected:
 The result is read from the label the agent writes into the file (OOXML custom
 properties, PDF Info dictionary); for images and files with `result_from: backend`
 it is read from the backend's inventory instead.
+
+For an embedded label the run also checks that `NextDLP_ClassifiedAt` is an
+ISO-8601 UTC time.
 
 On a full-suite run the harness checks coverage: every document type and secrecy
 level the setup can assign must be expected by some case, unless it is listed as
@@ -151,6 +158,7 @@ harness/config.py          settings (environment variables)
 tools/make_data.py         regenerates the synthetic documents (--force to rewrite all)
 tools/make_docx.py         minimal .docx, optionally with embedded images
 tools/make_pptx.py         .pptx with slides, a table and speaker notes (python-pptx)
+tools/make_xlsx.py         minimal .xlsx (one sheet, shared strings)
 tools/make_media.py        PNG images and text / scanned PDFs
 tools/make_broken.py       password-protected and corrupt .docx
 ```
@@ -161,5 +169,11 @@ tools/make_broken.py       password-protected and corrupt .docx
 - No two files share content: the agent caches results by content, so a duplicate
   would be answered from the cache (the run warns about it).
 - Files in `data/` must not carry a NextDLP label; the run refuses labeled inputs.
-- Trigger words avoid the department's real policy (hóa đơn, thuế, phí, số tiền,
-  "quý 1"/"quý 2", long digit runs) and every other rule of the suite.
+- Trigger words avoid the department's real policy (hóa đơn, thuế, phí, lệ phí,
+  số tiền, "contract", "quý 1"/"quý 2", 9-, 10- and 12-digit numbers) and every
+  other rule of the suite. That is why the customer tests' own wording (hóa đơn,
+  CCCD 001099012345…) is replaced by other words with the same meaning for the test.
+- Semantic rules get their own threshold, chosen from measured similarities: run
+  `nextdlp classify` with the rule's description in a local `default_policy.yaml`
+  over every file of the suite, and keep a clear gap between the target files and
+  all others.

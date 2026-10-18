@@ -1,0 +1,6 @@
+title: A keyword needed twice appears once, no type (TC-A-03)
+
+expected:
+  chung-chi-mot.docx:
+    secrecy: public
+    domains: []

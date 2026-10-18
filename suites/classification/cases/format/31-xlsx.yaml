@@ -1,0 +1,6 @@
+title: An .xlsx is classified and labeled like a .docx (TC-E-02)
+
+expected:
+  bang-tinh.xlsx:
+    secrecy: confidential
+    domains: [uat-hr]

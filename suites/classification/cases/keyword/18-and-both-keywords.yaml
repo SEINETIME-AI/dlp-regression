@@ -1,0 +1,6 @@
+title: Both required keywords present, the AND rule assigns its type (TC-A-01)
+
+expected:
+  dieu-dong.docx:
+    secrecy: public
+    domains: [uat-dieu-dong]

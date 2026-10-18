@@ -1,0 +1,6 @@
+title: One term of weight 1.0 is enough (TC-C-02)
+
+expected:
+  kiem-ke.docx:
+    secrecy: public
+    domains: [uat-kiem-ke]

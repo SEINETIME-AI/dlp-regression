@@ -12,6 +12,7 @@ from pathlib import Path
 
 from make_docx import write_docx
 from make_pptx import write_pptx
+from make_xlsx import write_xlsx
 from make_broken import write_corrupt_docx, write_password_docx
 from make_media import text_image, write_png, write_scanned_pdf, write_text_pdf
 
@@ -73,6 +74,56 @@ FILES = {
     ]),
     "mode/02-other-text-matches-nothing/thuc-don.docx": lambda p: write_docx(p, [
         "Thực đơn bữa trưa tuần sau của căng tin gồm cơm gà, canh rau và trái cây (dữ liệu giả lập).",
+    ]),
+    # Customer test cases (TC-…); triggers stay off the real policy and the other rules.
+    "classification/18-and-both-keywords/dieu-dong.docx": lambda p: write_docx(p, [
+        "Lệnh điều động xe công vụ cho đoàn công tác tuần sau (dữ liệu giả lập).",
+    ]),
+    "classification/19-and-one-keyword-missing/dieu-dong-thieu.docx": lambda p: write_docx(p, [
+        "Lệnh điều động máy xúc ra công trường số hai (dữ liệu giả lập).",
+    ]),
+    "classification/20-min-count-not-reached/chung-chi-mot.docx": lambda p: write_docx(p, [
+        "Hồ sơ dự tuyển kèm một chứng chỉ ngoại ngữ (dữ liệu giả lập).",
+    ]),
+    "classification/21-min-count-reached/chung-chi-hai.docx": lambda p: write_docx(p, [
+        "Chứng chỉ tin học đã nộp đủ.",
+        "Chứng chỉ ngoại ngữ sẽ bổ sung trong tuần (dữ liệu giả lập).",
+    ]),
+    "classification/22-regex-matcher/ma-nhan-vien.docx": lambda p: write_docx(p, [
+        "Mã nhân viên NV-20481 được cấp thẻ ra vào tầng năm (dữ liệu giả lập).",
+    ]),
+    "classification/23-semantic-paraphrase/cong-no.docx": lambda p: write_docx(p, [
+        "Khách hàng đã hoàn tất nghĩa vụ thanh toán còn tồn đọng. "
+        "Khoản công nợ đã được tất toán và không còn số dư phải thu.",
+    ]),
+    "classification/24-semantic-other-wording/tuyen-dung.docx": lambda p: write_docx(p, [
+        "Ứng viên đã hoàn thành vòng phỏng vấn cuối cùng. "
+        "Bộ phận tuyển dụng đang chuẩn bị thư mời và chế độ đãi ngộ cho vị trí mới.",
+    ]),
+    "classification/25-semantic-below-threshold/lich-hop-ky-thuat.docx": lambda p: write_docx(p, [
+        "Lịch họp phòng kỹ thuật được chuyển sang 9 giờ sáng thứ Hai. Phòng họp số 3 đã được đặt trước.",
+    ]),
+    "classification/26-two-weak-terms-reach/nong-san.docx": lambda p: write_docx(p, [
+        "Hợp tác xã ký kế hoạch thu mua nông sản vụ hè (dữ liệu giả lập).",
+    ]),
+    "classification/27-one-strong-term/kiem-ke.docx": lambda p: write_docx(p, [
+        "Gửi kèm báo cáo kiểm kê kho cuối tháng (dữ liệu giả lập).",
+    ]),
+    "classification/28-repeated-term-counts-once/nong-san-lap.docx": lambda p: write_docx(p, [
+        "Nông sản sấy khô, nông sản đông lạnh, nông sản tươi và nông sản chế biến "
+        "đều được nhập về kho nông sản mới (dữ liệu giả lập).",
+    ]),
+    "classification/29-terms-far-apart/nong-san-xa.docx": lambda p: write_docx(p, [
+        "Hợp tác xã gửi đề xuất mở rộng khu sơ chế.",
+        *['Đoạn 1: mô tả kế hoạch sắp xếp kho bãi, lịch vận chuyển và phân công trực ca (dữ liệu giả lập).', 'Đoạn 2: mô tả kế hoạch sắp xếp kho bãi, lịch vận chuyển và phân công trực ca (dữ liệu giả lập).', 'Đoạn 3: mô tả kế hoạch sắp xếp kho bãi, lịch vận chuyển và phân công trực ca (dữ liệu giả lập).', 'Đoạn 4: mô tả kế hoạch sắp xếp kho bãi, lịch vận chuyển và phân công trực ca (dữ liệu giả lập).', 'Đoạn 5: mô tả kế hoạch sắp xếp kho bãi, lịch vận chuyển và phân công trực ca (dữ liệu giả lập).', 'Đoạn 6: mô tả kế hoạch sắp xếp kho bãi, lịch vận chuyển và phân công trực ca (dữ liệu giả lập).', 'Đoạn 7: mô tả kế hoạch sắp xếp kho bãi, lịch vận chuyển và phân công trực ca (dữ liệu giả lập).', 'Đoạn 8: mô tả kế hoạch sắp xếp kho bãi, lịch vận chuyển và phân công trực ca (dữ liệu giả lập).'],
+        "Phần cuối: danh mục nông sản dự kiến thu hoạch trong mùa tới.",
+    ]),
+    "classification/30-no-synonyms/nong-nghiep.docx": lambda p: write_docx(p, [
+        "Tổ hợp tác thu mua hàng nông nghiệp và sản phẩm trồng trọt của bà con (dữ liệu giả lập).",
+    ]),
+    "classification/31-xlsx/bang-tinh.xlsx": lambda p: write_xlsx(p, [
+        "Bảng lương khối văn phòng",
+        "Tài liệu lưu hành nội bộ (dữ liệu giả lập)",
     ]),
     "classification/13-keyword-and-pattern/ho-so.docx": lambda p: write_docx(p, [
         "Hồ sơ khởi động, mã dự án DA-KHCN.",

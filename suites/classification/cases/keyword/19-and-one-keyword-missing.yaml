@@ -1,0 +1,6 @@
+title: One of two required keywords missing, no type (TC-A-02)
+
+expected:
+  dieu-dong-thieu.docx:
+    secrecy: public
+    domains: []

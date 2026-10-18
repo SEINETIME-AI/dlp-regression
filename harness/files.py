@@ -15,7 +15,8 @@ def _label(values: dict) -> dict | None:
     if not values.get("NextDLP_Secrecy"):
         return None
     domains = [d.strip() for d in (values.get("NextDLP_Domains") or "").split(",") if d.strip()]
-    return {"secrecy": values["NextDLP_Secrecy"], "domains": sorted(domains)}
+    return {"secrecy": values["NextDLP_Secrecy"], "domains": sorted(domains),
+            "classified_at": values.get("NextDLP_ClassifiedAt", "")}
 
 
 def embedded_label(path: Path) -> dict | None:

@@ -2,6 +2,7 @@
 every case's files, each case is checked against the label the agent wrote into
 its files, then everything the run created is removed."""
 import hashlib
+import re
 import shutil
 import time
 from dataclasses import dataclass, field
@@ -53,6 +54,9 @@ def wait_until(predicate, timeout_s: int, interval_s: float = 3.0, what: str = "
         time.sleep(interval_s)
 
 
+ISO_UTC = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z")
+
+
 class Case:
     def __init__(self, spec: Path, data: Path, root: Path, backend_result):
         self.name = spec.stem
@@ -88,6 +92,10 @@ class Case:
             got = (labels[name]["secrecy"], labels[name]["domains"])
             message = f"{name}: {got[0]} {got[1]}"
             self.result.checks.append((got == want, message if got == want else f"{message} (want {want[0]} {want[1]})"))
+            # An embedded label also carries when it was written, as ISO-8601 UTC (TC-E-06).
+            if "classified_at" in labels[name] and not ISO_UTC.fullmatch(labels[name]["classified_at"]):
+                self.result.checks.append((False, f"{name}: NextDLP_ClassifiedAt "
+                                                  f"{labels[name]['classified_at']!r} is not ISO-8601 UTC"))
 
 
 class Suite:
@@ -253,7 +261,9 @@ class Suite:
             version_with_suite = self.api.machine(self.settings.machine)["policy_version"]
             removed = self.api.delete_uat_objects(self.settings.prefix)
             notes += removed
-            if removed:
+            # Only a removed policy changes what the agent runs; a setup that failed
+            # before creating one has nothing for the agent to drop.
+            if any(item.startswith("policy ") for item in removed):
                 self.wait_for_agent_policy(version_with_suite, "the agent to go back to the real policy")
                 notes.append("agent back on the real policy only")
             notes.append(f"{self.api.purge_documents(str(self.root))} inventory row(s) purged")

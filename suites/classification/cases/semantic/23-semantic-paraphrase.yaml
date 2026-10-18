@@ -1,0 +1,6 @@
+title: A paraphrase reaches the 0.6 rule, not the same description with its own 0.85 threshold (TC-B-01 and TC-B-04)
+
+expected:
+  cong-no.docx:
+    secrecy: public
+    domains: [uat-cong-no]
