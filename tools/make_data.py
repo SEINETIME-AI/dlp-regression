@@ -13,6 +13,7 @@ from pathlib import Path
 from make_docx import write_docx
 from make_pptx import write_pptx
 from make_xlsx import write_xlsx
+from make_large import write_large_text
 from make_broken import write_corrupt_docx, write_password_docx
 from make_media import round_stamp, write_stamped_scan, text_image, write_png, write_scanned_pdf, write_text_pdf
 
@@ -132,6 +133,11 @@ FILES = {
         "Biên bản được lập thành hai bản có giá trị như nhau.",
         "(dữ liệu giả lập)",
     ], round_stamp(360, "CÔNG TY TNHH THỬ NGHIỆM UAT * HÀ NỘI * ", "MẬT")),
+    # TC-H-03/H-04: too big to commit (see .gitignore); written at run time.
+    "classification/33-large-text-12mb/nhat-ky-12mb.txt": lambda p: write_large_text(
+        p, 12, "Ghi chú cuối: tài liệu tuyệt mật, không phát tán (dữ liệu giả lập).", 10.5, "A"),
+    "classification/34-large-text-22mb/nhat-ky-22mb.txt": lambda p: write_large_text(
+        p, 22, "Ghi chú cuối: tài liệu tuyệt mật, không phát tán (dữ liệu giả lập).", None, "B"),
     "classification/13-keyword-and-pattern/ho-so.docx": lambda p: write_docx(p, [
         "Hồ sơ khởi động, mã dự án DA-KHCN.",
         "Phạm vi: chuẩn hóa quy trình tiếp nhận yêu cầu (dữ liệu giả lập).",

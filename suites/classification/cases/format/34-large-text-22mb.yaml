@@ -1,0 +1,7 @@
+title: A 22 MB text file with "tuyệt mật" on the last line is classified secret (TC-H-03)
+
+# Plain text has no embedded label: the result comes from the backend.
+expected:
+  nhat-ky-22mb.txt:
+    secrecy: secret
+    domains: []
