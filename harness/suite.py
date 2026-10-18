@@ -177,7 +177,7 @@ class Suite:
                 raise ValueError(f"policy name must start with {settings.prefix!r}: {policy['name']}")
             console.create_policy(policy["name"], settings.company_name, settings.department_name,
                                   policy["conditions"], secrecy_names, type_names,
-                                  policy.get("classification_method"))
+                                  policy.get("classification_methods"))
 
     def wait_for_agent_policy(self, version_before, what: str):
         def pulled():

@@ -73,11 +73,11 @@ class AdminConsole:
         expect(dialog).to_be_hidden()
 
     # ── Classification policy ────────────────────────────────────────────────
-    _METHODS = {"all": "Tất cả kỹ thuật", "keyword": "Từ khóa / Regex", "embedding": "Ngữ nghĩa (ML)",
-                "dictionary": "Từ điển có trọng số", "hybrid": "Hybrid"}
+    _METHODS = {"keyword": "Từ khóa / Regex", "embedding": "Ngữ nghĩa (ML)",
+                "dictionary": "Từ điển có trọng số", "hybrid": "Hybrid", "stamp": "Dấu mộc"}
 
     def create_policy(self, name: str, company: str, department: str, conditions: list[dict],
-                      secrecy_names: dict, type_names: dict, method: str | None = None):
+                      secrecy_names: dict, type_names: dict, methods: list[str] | None = None):
         self.open("/classification-policies")
         self.page.get_by_role("button", name="Chính sách mới", exact=True).click()
         form = self.page.get_by_role("dialog", name=re.compile("^Chính sách phân loại mới"))
@@ -114,8 +114,10 @@ class AdminConsole:
         # "Lưu điều kiện" for one condition, "Lưu N điều kiện" for more.
         editor.get_by_role("button", name=re.compile(r"^Lưu( \d+)? điều kiện$")).click()
         expect(editor).to_be_hidden()
-        if method:  # picked on the conditions tab, above the list
-            form.get_by_role("button", name=self._METHODS[method], exact=True).click()
+        if methods:  # every technique starts selected; switch off the others
+            for method, label in self._METHODS.items():
+                if method not in methods:
+                    form.get_by_role("button", name=label, exact=True).click()
         form.get_by_role("button", name="Tạo chính sách", exact=True).click()
         expect(form).to_be_hidden()
 
