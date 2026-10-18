@@ -1,0 +1,9 @@
+title: A .docx that never went through NextDLP has no label and is not reported public
+
+# Customer test TC-E-08. Dropped next to the data source, never inside it.
+outside_sources: true
+
+expected:
+  khong-co-nhan.docx:
+    secrecy: unlabelled   # no NextDLP_Secrecy in the file, no inventory row
+    domains: []

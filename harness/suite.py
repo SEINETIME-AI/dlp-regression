@@ -53,13 +53,28 @@ def wait_until(predicate, timeout_s: int, interval_s: float = 3.0, what: str = "
         time.sleep(interval_s)
 
 
+def outside_root(suite_root: Path) -> Path:
+    """A sibling of the suite's data source folder, so nothing under it is watched."""
+    return suite_root.with_name(suite_root.name + "-outside")
+
+
+# How long a file outside every data source is left alone before checking that
+# the agent never touched it (debounce + classify + the 30 s report, with margin).
+OUTSIDE_SETTLE_S = 60
+
+
 class Case:
     def __init__(self, spec: Path, data: Path, root: Path, backend_result):
         self.name = spec.stem
-        self.expected = yaml.safe_load(spec.read_text(encoding="utf-8"))["expected"]
+        spec_yaml = yaml.safe_load(spec.read_text(encoding="utf-8"))
+        self.expected = spec_yaml["expected"]
+        # Dropped next to the suite's data source instead of inside it: the
+        # file never goes through NextDLP and must stay "unlabelled".
+        self.outside_sources = bool(spec_yaml.get("outside_sources"))
         self.data = data / self.name
-        self.root = root / self.name
+        self.root = (outside_root(root) if self.outside_sources else root) / self.name
         self.backend_result = backend_result  # for files that cannot carry a label (images)
+        self.dropped_at = 0.0
         self.result = CaseResult(self.name)
 
     def sources(self) -> list[Path]:
@@ -69,8 +84,11 @@ class Case:
         self.root.mkdir(parents=True, exist_ok=True)
         for source in self.sources():
             shutil.copy2(source, self.root / source.name)
+        self.dropped_at = time.monotonic()
 
     def labels(self) -> dict | None:
+        if self.outside_sources:
+            return self.untouched_labels()
         labels = {}
         for name, expected in self.expected.items():
             path = self.root / name
@@ -81,6 +99,17 @@ class Case:
             except Exception:  # noqa: BLE001 — the agent may be rewriting the file right now
                 labels[name] = None
         return labels if all(labels.values()) else None
+
+    def untouched_labels(self) -> dict | None:
+        """"unlabelled" for a file with no embedded label and no backend row, after the settle time."""
+        if time.monotonic() - self.dropped_at < OUTSIDE_SETTLE_S:
+            return None
+        labels = {}
+        for name in self.expected:
+            path = self.root / name
+            label = embedded_label(path) if path.suffix.lower() in LABELED_SUFFIXES else None
+            labels[name] = label or self.backend_result(path) or {"secrecy": "unlabelled", "domains": []}
+        return labels
 
     def verify(self, labels: dict):
         for name, expected in self.expected.items():
@@ -218,7 +247,9 @@ class Suite:
     def cleanup(self):
         notes, problems = [], []
         try:
-            dropped = {name for case in self.cases if case.root.exists() for name in case.expected}
+            dropped = {name for case in self.cases if case.root.exists() and not case.outside_sources
+                       for name in case.expected}
+            shutil.rmtree(outside_root(self.root), ignore_errors=True)
             # Delete while the agent still watches the folder, so it reports the deletions.
             if self.root.exists():
                 shutil.rmtree(self.root, ignore_errors=True)
