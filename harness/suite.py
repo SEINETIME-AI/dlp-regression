@@ -98,12 +98,17 @@ class Suite:
         self.api = api
         self.root = settings.work_root / run_id / self.name
         self.failure_shot = settings.reports_dir / f"{self.name}-failure.png"
-        case_specs = sorted((folder / "cases").glob("*.yaml"))
+        # Cases may sit in topic subfolders; a case name (file stem) is unique per suite.
+        case_specs = sorted((folder / "cases").rglob("*.yaml"), key=lambda p: p.stem)
+        stems = [p.stem for p in case_specs]
+        if duplicates := sorted({stem for stem in stems if stems.count(stem) > 1}):
+            raise ValueError(f"duplicate case names in {self.name}: {', '.join(duplicates)}")
         if only:
             unknown = set(only) - {p.stem for p in case_specs}
             if unknown:
                 raise ValueError(f"unknown case(s) in {self.name}: {', '.join(sorted(unknown))}")
             case_specs = [p for p in case_specs if p.stem in only]
+        self.only = only
         self.cases = [Case(p, settings.data_dir / self.name, self.root, self.backend_result) for p in case_specs]
         self.result = SuiteResult(self.name)
         self.policy_version_before = None
@@ -116,6 +121,8 @@ class Suite:
         self.failure_shot.unlink(missing_ok=True)
         try:
             self.check_source_files()
+            if not self.only:
+                self.check_coverage()
             page = browser.new_page(viewport={"width": 1500, "height": 1000})
             console = AdminConsole(page, self.settings.base_url)
             console.login(self.settings.admin_user, self.settings.admin_password)
@@ -136,6 +143,18 @@ class Suite:
         if not keep:
             self.cleanup()
         return self.result
+
+    def check_coverage(self):
+        """Every document type and secrecy level the setup can assign shows up in some case,
+        so a rule no case exercises cannot slip in. Run on the whole suite only."""
+        expected_types = {t for case in self.cases for e in case.expected.values() for t in e.get("domains") or []}
+        expected_secrecy = {e["secrecy"] for case in self.cases for e in case.expected.values()}
+        negatives = set(self.setup_spec.get("negative_document_types", []))
+        types = {t["code"] for t in self.setup_spec.get("document_types", [])} - negatives
+        secrecy = {c["secrecy"] for p in self.setup_spec["policies"] for c in p["conditions"] if c.get("secrecy")}
+        secrecy -= set(self.setup_spec.get("negative_secrecy", []))
+        if missing := sorted((types - expected_types) | (secrecy - expected_secrecy)):
+            raise ValueError(f"{self.name}: no case expects {', '.join(missing)}; add a case or list it as negative")
 
     def check_source_files(self):
         seen = {}

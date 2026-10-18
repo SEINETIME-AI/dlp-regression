@@ -59,11 +59,11 @@ FILES = {
         "Biên bản đối chiếu phiếu chi tháng trước (dữ liệu giả lập).",
     ]),
 
-    "dictionary/01-own-threshold-wins/kho-van.docx": lambda p: write_docx(p, [
+    "classification/11-own-threshold-wins/kho-van.docx": lambda p: write_docx(p, [
         "Đã lập phiếu xuất kho cho lô vật tư tuần này.",
         "Kèm biên nhận của bộ phận giao hàng (dữ liệu giả lập).",
     ]),
-    "dictionary/02-one-term-below/bien-nhan.docx": lambda p: write_docx(p, [
+    "classification/12-one-term-below/bien-nhan.docx": lambda p: write_docx(p, [
         "Bộ phận lễ tân đã ký biên nhận bưu phẩm (dữ liệu giả lập).",
     ]),
     # Every condition of every mode policy matches this one.
@@ -74,23 +74,23 @@ FILES = {
     "mode/02-other-text-matches-nothing/thuc-don.docx": lambda p: write_docx(p, [
         "Thực đơn bữa trưa tuần sau của căng tin gồm cơm gà, canh rau và trái cây (dữ liệu giả lập).",
     ]),
-    "hybrid/01-keyword-and-pattern/ho-so.docx": lambda p: write_docx(p, [
+    "classification/13-keyword-and-pattern/ho-so.docx": lambda p: write_docx(p, [
         "Hồ sơ khởi động, mã dự án DA-KHCN.",
         "Phạm vi: chuẩn hóa quy trình tiếp nhận yêu cầu (dữ liệu giả lập).",
     ]),
-    "hybrid/02-keyword-without-pattern/ghi-chu.docx": lambda p: write_docx(p, [
+    "classification/14-keyword-without-pattern/ghi-chu.docx": lambda p: write_docx(p, [
         "Ghi chú: mã dự án sẽ được cấp sau buổi duyệt.",
         "Nhóm phụ trách cập nhật lại kế hoạch tuần (dữ liệu giả lập).",
     ]),
-    "hybrid/03-wordlist-reaches-threshold/ha-tang.docx": lambda p: write_docx(p, [
+    "classification/15-wordlist-reaches-threshold/ha-tang.docx": lambda p: write_docx(p, [
         "Bản cập nhật sơ đồ mạng tầng ba.",
         "Cấu hình tường lửa mới áp dụng từ tuần sau (dữ liệu giả lập).",
     ]),
-    "hybrid/04-wordlist-below-threshold/thiet-bi.docx": lambda p: write_docx(p, [
+    "classification/16-wordlist-below-threshold/thiet-bi.docx": lambda p: write_docx(p, [
         "Danh mục thiết bị: một máy chủ dự phòng đặt tại kho.",
         "Kiểm kê định kỳ theo lịch của phòng (dữ liệu giả lập).",
     ]),
-    "hybrid/05-pdf-both-rules/tong-hop.pdf": lambda p: write_text_pdf(p, [
+    "classification/17-pdf-both-rules/tong-hop.pdf": lambda p: write_text_pdf(p, [
         "Tổng hợp mã dự án DA-HTMG.",
         "Hạng mục: thay máy chủ và tường lửa (dữ liệu giả lập).",
     ]),

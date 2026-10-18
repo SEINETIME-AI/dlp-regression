@@ -19,6 +19,10 @@ document_types:
   - {code: uat-mode-ml-on, name: UAT Mode ngữ nghĩa (đúng)}
   - {code: uat-mode-ml-off, name: UAT Mode ngữ nghĩa (sai)}
 
+# Results a correct agent never gives here; the coverage check skips them.
+negative_document_types: [uat-mode-kw-off, uat-mode-dict-off, uat-mode-ml-off]
+negative_secrecy: [secret]   # policy B's keyword "mật" rule, keyword being off there
+
 policies:
   - name: UAT mode keyword
     classification_methods: [keyword]
