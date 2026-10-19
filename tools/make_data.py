@@ -13,7 +13,7 @@ from pathlib import Path
 from make_docx import write_docx
 from make_pptx import write_pptx
 from make_xlsx import write_xlsx
-from make_large import write_large_text
+from make_large import write_large_pdf, write_large_text
 from make_broken import write_corrupt_docx, write_password_docx
 from make_media import round_stamp, write_stamped_scan, text_image, write_png, write_scanned_pdf, write_text_pdf
 
@@ -143,6 +143,10 @@ FILES = {
     "classification/36-large-text-hybrid/nhat-ky-du-an-22mb.txt": lambda p: write_large_text(
         p, 22, "Ghi chú cuối: hồ sơ DA-KHCN đã nộp (dữ liệu giả lập).", None, "D",
         first_line="Nhật ký mã dự án nghiên cứu (dữ liệu giả lập)."),
+    # A PDF above 20 MB is read page by page from both ends.
+    "classification/37-large-pdf-dictionary/bien-ban-22mb.pdf": lambda p: write_large_pdf(
+        p, "Biên bản họp hợp tác xã thôn Bắc (dữ liệu giả lập).",
+        "Phụ lục: kế hoạch thu mua nông sản vụ đông (dữ liệu giả lập).", 22),
     "classification/34-large-text-22mb/nhat-ky-22mb.txt": lambda p: write_large_text(
         p, 22, "Ghi chú cuối: tài liệu tuyệt mật, không phát tán (dữ liệu giả lập).", None, "B"),
     "classification/13-keyword-and-pattern/ho-so.docx": lambda p: write_docx(p, [
