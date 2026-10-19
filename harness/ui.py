@@ -128,7 +128,7 @@ class AdminConsole:
         if methods:  # every technique starts selected; switch off the others
             for method, label in self._METHODS.items():
                 if method not in methods:
-                    form.get_by_role("button", name=label, exact=True).click()
+                    form.get_by_role("checkbox", name=label, exact=True).uncheck()
         form.get_by_role("button", name="Tạo chính sách", exact=True).click()
         expect(form).to_be_hidden()
 

@@ -4,6 +4,8 @@ its files, then everything the run created is removed."""
 import hashlib
 import re
 import shutil
+import subprocess
+import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -165,6 +167,9 @@ class Suite:
             raise ValueError(f"{self.name}: no case expects {', '.join(missing)}; add a case or list it as negative")
 
     def check_source_files(self):
+        # Files too large to commit are written on first use.
+        if any(not source.exists() for case in self.cases for source in case.sources()):
+            subprocess.run([sys.executable, "make_data.py"], cwd=self.settings.data_dir.parent / "tools", check=True)
         seen = {}
         for case in self.cases:
             for source in case.sources():

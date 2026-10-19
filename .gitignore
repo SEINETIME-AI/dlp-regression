@@ -7,3 +7,5 @@ test-results/
 playwright-report/
 # Office lock files from opening a document in data/
 ~$*
+# Large files written at run time by tools/make_data.py (TC-H-03/H-04)
+data/**/nhat-ky-*mb.txt

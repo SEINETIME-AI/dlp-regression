@@ -34,9 +34,10 @@ document_types:
 # (negative_secrecy does the same for secrecy levels).
 negative_document_types: [uat-dict-default, uat-cong-no-strict]
 
-# The UI form starts with .pdf/.docx/.xlsx; the format cases also need images and slides.
+# The UI form starts with .pdf/.docx/.xlsx; the format cases also need images, slides
+# and plain text.
 data_source:
-  extra_extensions: [.png, .pptx]
+  extra_extensions: [.png, .pptx, .txt]
 
 policies:
   - name: UAT classification keyword
