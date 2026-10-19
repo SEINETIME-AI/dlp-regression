@@ -2,5 +2,5 @@ title: The keyword alone does not fire an AND rule
 
 expected:
   ghi-chu.docx:
-    secrecy: public
+    secrecy: unlabelled
     domains: []          # "mã dự án", no DA- code

@@ -80,8 +80,10 @@ class Case:
         labels = {}
         for name, expected in self.expected.items():
             path = self.root / name
-            # `result_from: backend` for a file the agent cannot label (encrypted, broken).
-            from_backend = expected.get("result_from") == "backend" or path.suffix.lower() not in LABELED_SUFFIXES
+            # `result_from: backend` for a file the agent cannot label (encrypted, broken); an
+            # unlabelled file carries no NextDLP_Secrecy, so only the backend tells it is done.
+            from_backend = (expected.get("result_from") == "backend" or expected["secrecy"] == "unlabelled"
+                            or path.suffix.lower() not in LABELED_SUFFIXES)
             try:
                 labels[name] = self.backend_result(path) if from_backend else embedded_label(path)
             except Exception:  # noqa: BLE001 — the agent may be rewriting the file right now
@@ -94,6 +96,15 @@ class Case:
             got = (labels[name]["secrecy"], labels[name]["domains"])
             message = f"{name}: {got[0]} {got[1]}"
             self.result.checks.append((got == want, message if got == want else f"{message} (want {want[0]} {want[1]})"))
+            # Unlabelled is written into no file: a stale or unknown NextDLP_Secrecy is removed (TC-E-07/E-08).
+            path = self.root / name
+            if want[0] == "unlabelled" and path.suffix.lower() in LABELED_SUFFIXES and path.exists():
+                try:
+                    leftover = embedded_label(path)
+                except Exception:  # noqa: BLE001 — encrypted or broken files cannot carry one
+                    leftover = None
+                if leftover:
+                    self.result.checks.append((False, f"{name}: still carries NextDLP_Secrecy={leftover['secrecy']}"))
             # An embedded label also carries when it was written, as ISO-8601 UTC (TC-E-06).
             if "classified_at" in labels[name] and not ISO_UTC.fullmatch(labels[name]["classified_at"]):
                 self.result.checks.append((False, f"{name}: NextDLP_ClassifiedAt "
@@ -175,7 +186,8 @@ class Suite:
             for source in case.sources():
                 if not source.exists():
                     raise FileNotFoundError(f"missing test file {source}")
-                if source.suffix.lower() in LABELED_SUFFIXES and embedded_label(source):
+                starts_labelled = case.expected[source.name].get("starts_labelled", False)
+                if source.suffix.lower() in LABELED_SUFFIXES and not starts_labelled and embedded_label(source):
                     raise RuntimeError(f"{source} already carries a NextDLP label; regenerate data/")
                 digest = hashlib.sha256(source.read_bytes()).hexdigest()
                 if digest in seen:
@@ -287,7 +299,8 @@ class Suite:
         if types := [t["code"] for t in self.setup_spec.get("document_types", []) if self.api.document_type(t["code"])]:
             problems.append(f"document types left: {types}")
         if labeled := [str(s) for case in self.cases for s in case.sources()
-                       if s.suffix.lower() in LABELED_SUFFIXES and embedded_label(s)]:
+                       if s.suffix.lower() in LABELED_SUFFIXES and embedded_label(s)
+                       and not case.expected[s.name].get("starts_labelled", False)]:
             problems.append(f"originals in data/ got a label: {labeled}")
         self.result.cleanup_ok = not problems
         self.result.cleanup = "; ".join(problems) if problems else ", ".join(notes)

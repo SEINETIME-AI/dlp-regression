@@ -2,5 +2,5 @@ title: A 0.5 term repeated many times still scores 0.5 (TC-C-03)
 
 expected:
   nong-san-lap.docx:
-    secrecy: public
+    secrecy: unlabelled
     domains: []

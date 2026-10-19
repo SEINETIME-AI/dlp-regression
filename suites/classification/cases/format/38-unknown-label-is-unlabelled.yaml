@@ -1,0 +1,7 @@
+title: A file labelled with an unknown secrecy code no rule confirms is unlabelled, and the code is removed (TC-E-07)
+
+expected:
+  nhan-la.docx:
+    secrecy: unlabelled
+    domains: []
+    starts_labelled: true   # carries NextDLP_secrecy=top_secret (lower-case s, as the tester typed it) before the agent sees it

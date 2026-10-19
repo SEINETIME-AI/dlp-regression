@@ -1,8 +1,8 @@
-title: A corrupt .docx is confidential, never public
+title: A corrupt .docx is unlabelled, never public (TC-F-05)
 
 # not a readable zip: no text, no embedded label; the result comes from the backend.
 expected:
   bien-ban-hong.docx:
-    secrecy: confidential
+    secrecy: unlabelled
     domains: []
     result_from: backend

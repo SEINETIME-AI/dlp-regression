@@ -3,5 +3,5 @@ title: A 22 MB text file fires a dictionary rule from both halves of the file (T
 # "hợp tác xã" on the first line, "nông sản" on the last: each half alone is not enough.
 expected:
   nhat-ky-tu-dien-22mb.txt:
-    secrecy: public
+    secrecy: unlabelled
     domains: [uat-nong-san]

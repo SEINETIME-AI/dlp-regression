@@ -1,6 +1,0 @@
-title: A file that matches no rule is public with no document type
-
-expected:
-  lich-hop.docx:
-    secrecy: public
-    domains: []

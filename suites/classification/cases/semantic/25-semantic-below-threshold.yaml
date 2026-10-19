@@ -2,5 +2,5 @@ title: Unrelated text stays below every semantic threshold (TC-B-03)
 
 expected:
   lich-hop-ky-thuat.docx:
-    secrecy: public
+    secrecy: unlabelled
     domains: []
