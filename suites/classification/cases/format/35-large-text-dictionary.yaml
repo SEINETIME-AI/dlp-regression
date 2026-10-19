@@ -1,0 +1,7 @@
+title: A 22 MB text file fires a dictionary rule from both halves of the file (TC-H-03)
+
+# "hợp tác xã" on the first line, "nông sản" on the last: each half alone is not enough.
+expected:
+  nhat-ky-tu-dien-22mb.txt:
+    secrecy: public
+    domains: [uat-nong-san]

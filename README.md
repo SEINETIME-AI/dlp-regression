@@ -49,7 +49,7 @@ start the service, run the suites, then put the backup back (all as administrato
 
 | Suite | What it covers | Customer tests |
 |---|---|---|
-| `classification` | Every technique on, as in a real policy (34 cases): keyword secrecy and document types, AND of two keywords, `min_count`, regex; semantic rules with their own thresholds; weighted dictionary (thresholds, repeated and distant terms, no synonyms); hybrid rules; the file formats (PDF text and scanned, PNG, DOCX with an embedded image, PPTX, XLSX, password-protected and corrupt DOCX); a red stamp on a scanned page; 12 MB and 22 MB text files with the trigger past the first 10 MB. Grouped in `cases/keyword`, `cases/semantic`, `cases/dictionary`, `cases/hybrid` and `cases/format`. | TC-A-01..06, TC-B-01..04, TC-C-01..06, TC-E-01..06, TC-F-04/05, TC-H-01..05 |
+| `classification` | Every technique on, as in a real policy (37 cases): keyword secrecy and document types, AND of two keywords, `min_count`, regex; semantic rules with their own thresholds; weighted dictionary (thresholds, repeated and distant terms, no synonyms); hybrid rules; the file formats (PDF text and scanned, PNG, DOCX with an embedded image, PPTX, XLSX, password-protected and corrupt DOCX); a red stamp on a scanned page; 12 MB and 22 MB text files with the trigger past the first 10 MB, and 22 MB text and PDF files whose dictionary or hybrid rule needs a signal from each half. Grouped in `cases/keyword`, `cases/semantic`, `cases/dictionary`, `cases/hybrid` and `cases/format`. | TC-A-01..06, TC-B-01..04, TC-C-01..06, TC-E-01..06, TC-F-04/05, TC-H-01..05 |
 | `mode` | The classification techniques a policy runs: two policies with different techniques, each with keyword, dictionary and semantic conditions that all match the same file. Only the selected techniques may assign a type; a switched-off keyword secrecy rule must not run. | TC-D-01..03 |
 
 Setting rules up and tearing them down is the slow part (console work plus the
@@ -173,7 +173,7 @@ tools/make_large.py        large plain-text files (tens of MB), written at run t
 - No two files share content: the agent caches results by content, so a duplicate
   would be answered from the cache (the run warns about it).
 - Files in `data/` must not carry a NextDLP label; the run refuses labeled inputs.
-- Files too large to commit (`nhat-ky-*mb.txt`) are git-ignored; the run writes
+- Files too large to commit (`nhat-ky-*mb.txt`, `*-22mb.pdf`) are git-ignored; the run writes
   them with `tools/make_data.py` when they are missing.
 - Trigger words avoid the department's real policy (hóa đơn, thuế, phí, lệ phí,
   số tiền, "contract", "quý 1"/"quý 2", 9-, 10- and 12-digit numbers) and every
