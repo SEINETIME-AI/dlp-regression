@@ -152,7 +152,8 @@ FILES = {
     # TC-E-07: starts with a secrecy code no taxonomy has; no rule matches its text.
     "classification/38-unknown-label-is-unlabelled/nhan-la.docx": lambda p: write_docx(p, [
         "Thông báo lịch bảo trì hệ thống điều hòa tầng ba vào sáng thứ bảy (dữ liệu giả lập).",
-    ], custom_properties={"NextDLP_Secrecy": "top_secret", "NextDLP_Domains": "",
+    # Spelled as the customer's tester typed it in Word: Office matches names without case.
+    ], custom_properties={"NextDLP_secrecy": "top_secret", "NextDLP_Domains": "",
                           "NextDLP_ClassifiedAt": "2026-01-01T00:00:00Z"}),
     "classification/13-keyword-and-pattern/ho-so.docx": lambda p: write_docx(p, [
         "Hồ sơ khởi động, mã dự án DA-KHCN.",

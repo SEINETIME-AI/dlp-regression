@@ -4,14 +4,19 @@ from pathlib import Path
 
 from pypdf import PdfReader
 
-_PROPERTY = re.compile(r'<property[^>]*name="(NextDLP_[A-Za-z]+)"[^>]*>\s*<vt:lpwstr>(.*?)</vt:lpwstr>', re.S)
+_PROPERTY = re.compile(r'<property[^>]*name="(nextdlp_[A-Za-z]+)"[^>]*>\s*<vt:lpwstr>(.*?)</vt:lpwstr>', re.S | re.I)
 
 # Formats the agent writes its label into; for anything else the result is read
 # from the backend instead.
 LABELED_SUFFIXES = {".docx", ".xlsx", ".pptx", ".pdf"}
 
 
+# Office matches custom property names without case; so does the agent.
+_CANONICAL = {name.lower(): name for name in ("NextDLP_Secrecy", "NextDLP_Domains", "NextDLP_ClassifiedAt")}
+
+
 def _label(values: dict) -> dict | None:
+    values = {_CANONICAL.get(key.lower(), key): value for key, value in values.items()}
     if not values.get("NextDLP_Secrecy"):
         return None
     domains = [d.strip() for d in (values.get("NextDLP_Domains") or "").split(",") if d.strip()]

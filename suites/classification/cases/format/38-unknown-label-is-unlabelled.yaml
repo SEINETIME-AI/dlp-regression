@@ -4,4 +4,4 @@ expected:
   nhan-la.docx:
     secrecy: unlabelled
     domains: []
-    starts_labelled: true   # carries NextDLP_Secrecy=top_secret before the agent sees it
+    starts_labelled: true   # carries NextDLP_secrecy=top_secret (lower-case s, as the tester typed it) before the agent sees it
