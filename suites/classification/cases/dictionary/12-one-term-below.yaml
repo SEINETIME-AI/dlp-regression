@@ -2,5 +2,5 @@ title: One term (0.4) fires neither rule
 
 expected:
   bien-nhan.docx:
-    secrecy: public
+    secrecy: unlabelled
     domains: []

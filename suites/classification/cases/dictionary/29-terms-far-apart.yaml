@@ -2,5 +2,5 @@ title: Terms far apart in the document still add up (TC-C-04)
 
 expected:
   nong-san-xa.docx:
-    secrecy: public
+    secrecy: unlabelled
     domains: [uat-nong-san]

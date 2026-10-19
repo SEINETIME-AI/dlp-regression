@@ -3,5 +3,5 @@ title: A 22 MB PDF fires a dictionary rule from its first and last pages (TC-H-0
 # "hợp tác xã" on page 1, "nông sản" on page 3; a noise image on page 2 makes the size.
 expected:
   bien-ban-22mb.pdf:
-    secrecy: public
+    secrecy: unlabelled
     domains: [uat-nong-san]

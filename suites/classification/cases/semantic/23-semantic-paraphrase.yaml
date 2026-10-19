@@ -2,5 +2,5 @@ title: A paraphrase reaches the 0.6 rule, not the same description with its own 
 
 expected:
   cong-no.docx:
-    secrecy: public
+    secrecy: unlabelled
     domains: [uat-cong-no]

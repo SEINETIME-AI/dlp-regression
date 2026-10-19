@@ -2,5 +2,5 @@ title: Keyword and data pattern both present fire the AND rule
 
 expected:
   ho-so.docx:
-    secrecy: public
+    secrecy: unlabelled
     domains: [uat-project]  # "mã dự án" + DA-KHCN

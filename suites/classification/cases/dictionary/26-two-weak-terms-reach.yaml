@@ -2,5 +2,5 @@ title: Two terms of 0.5 add up to the threshold 1.0 (TC-C-01)
 
 expected:
   nong-san.docx:
-    secrecy: public
+    secrecy: unlabelled
     domains: [uat-nong-san]

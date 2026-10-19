@@ -2,5 +2,5 @@ title: Only the selected techniques' "-on" types are assigned; the switched-off 
 
 expected:
   dien-tap.docx:
-    secrecy: public   # policy B's "mật" rule is keyword, which B does not run
+    secrecy: unlabelled   # policy B's "mật" rule is keyword, which B does not run
     domains: [uat-mode-dict-on, uat-mode-kw-on, uat-mode-ml-on]

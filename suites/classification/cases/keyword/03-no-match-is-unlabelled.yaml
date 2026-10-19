@@ -1,0 +1,6 @@
+title: A file that matches no rule is unlabelled with no document type (TC-E-08)
+
+expected:
+  lich-hop.docx:
+    secrecy: unlabelled
+    domains: []

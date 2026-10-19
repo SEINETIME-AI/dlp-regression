@@ -28,7 +28,7 @@ FILES = {
         "Tổng hợp lưu hành nội bộ.",
         "Phiếu chi văn phòng phẩm và bảng lương khối hành chính (dữ liệu giả lập).",
     ]),
-    "classification/03-no-match-is-public/lich-hop.docx": lambda p: write_docx(p, [
+    "classification/03-no-match-is-unlabelled/lich-hop.docx": lambda p: write_docx(p, [
         "Lịch họp giao ban tuần tới tại phòng họp tầng hai.",
         "Mời các trưởng nhóm tham dự đúng giờ (dữ liệu giả lập).",
     ]),
@@ -149,6 +149,11 @@ FILES = {
         "Phụ lục: kế hoạch thu mua nông sản vụ đông (dữ liệu giả lập).", 22),
     "classification/34-large-text-22mb/nhat-ky-22mb.txt": lambda p: write_large_text(
         p, 22, "Ghi chú cuối: tài liệu tuyệt mật, không phát tán (dữ liệu giả lập).", None, "B"),
+    # TC-E-07: starts with a secrecy code no taxonomy has; no rule matches its text.
+    "classification/38-unknown-label-is-unlabelled/nhan-la.docx": lambda p: write_docx(p, [
+        "Thông báo lịch bảo trì hệ thống điều hòa tầng ba vào sáng thứ bảy (dữ liệu giả lập).",
+    ], custom_properties={"NextDLP_Secrecy": "top_secret", "NextDLP_Domains": "",
+                          "NextDLP_ClassifiedAt": "2026-01-01T00:00:00Z"}),
     "classification/13-keyword-and-pattern/ho-so.docx": lambda p: write_docx(p, [
         "Hồ sơ khởi động, mã dự án DA-KHCN.",
         "Phạm vi: chuẩn hóa quy trình tiếp nhận yêu cầu (dữ liệu giả lập).",

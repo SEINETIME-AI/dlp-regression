@@ -3,5 +3,5 @@ title: A 22 MB text file fires a hybrid AND rule from both halves of the file (T
 # "mã dự án" on the first line, DA-KHCN on the last: each half alone is not enough.
 expected:
   nhat-ky-du-an-22mb.txt:
-    secrecy: public
+    secrecy: unlabelled
     domains: [uat-project]

@@ -2,5 +2,5 @@ title: A standalone image is OCR'd as a whole (no embedded label; result read fr
 
 expected:
   anh-chup.png:
-    secrecy: public
+    secrecy: unlabelled
     domains: [uat-hr]       # "bảng lương" in the image
