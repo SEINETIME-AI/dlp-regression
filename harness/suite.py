@@ -151,6 +151,7 @@ class Suite:
             self.wait_for_agent_policy(self.policy_version_before, "the agent to pull the suite's policy")
             time.sleep(5)  # let the watcher on the new data source start
             self.classify(sequential)
+            self.check_event_findings()
         except Exception as error:  # noqa: BLE001 — every failure must still reach cleanup and the report
             self.result.error = f"{type(error).__name__}: {error}"
             if console:
@@ -251,6 +252,29 @@ class Suite:
                 time.sleep(1)
             for case in pending:
                 case.result.error = f"no label after {self.settings.classify_timeout_s}s"
+
+    def check_event_findings(self):
+        """Every classification event the backend got for a case file explains itself: the
+        agent sends the findings of the scan that raised it, even after a rescan or a new
+        policy. A cache hit reuses an earlier result and has none of its own."""
+        for case in self.cases:
+            if case.result.error:
+                continue
+            for name in case.expected:
+                path = str(case.root / name)
+
+                def arrived():
+                    return self.api.items("/api/agent-events", event_type="file_classified", file_path=path, limit=50) or None
+                try:
+                    events = wait_until(arrived, self.settings.classify_timeout_s, what=f"the classification event of {name}")
+                except TimeoutError as error:
+                    case.result.checks.append((False, f"{name}: {error}"))
+                    continue
+                events = [e for e in events if e.get("action") != "cache_hit"]
+                if missing := [e["id"] for e in events if not e.get("findings")]:
+                    case.result.checks.append((False, f"{name}: event(s) {missing} carry no findings"))
+                else:
+                    case.result.checks.append((True, f"{name}: {len(events)} event(s) with findings"))
 
     def backend_result(self, path: Path) -> dict | None:
         """What the backend recorded for one file (the agent reports within ~30 s)."""
