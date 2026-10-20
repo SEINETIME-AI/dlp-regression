@@ -1,0 +1,9 @@
+title: A secrecy label the admin created in the console is written into the file and outranks secret
+
+expected:
+  chi-thi.docx:
+    secrecy: uat_toi_mat     # only "tối mật" (the new label's rule)
+    domains: []
+  ke-hoach.docx:
+    secrecy: uat_toi_mat     # "tối mật" and "tuyệt mật" (secret): the new label is above secret
+    domains: []

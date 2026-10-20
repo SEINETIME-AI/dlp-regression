@@ -49,7 +49,7 @@ start the service, run the suites, then put the backup back (all as administrato
 
 | Suite | What it covers | Customer tests |
 |---|---|---|
-| `classification` | Every technique on, as in a real policy (38 cases): keyword secrecy and document types, AND of two keywords, `min_count`, regex; semantic rules with their own thresholds; weighted dictionary (thresholds, repeated and distant terms, no synonyms); hybrid rules; the file formats (PDF text and scanned, PNG, DOCX with an embedded image, PPTX, XLSX, password-protected and corrupt DOCX, both unlabelled); a red stamp on a scanned page; 12 MB and 22 MB text files with the trigger past the first 10 MB, and 22 MB text and PDF files whose dictionary or hybrid rule needs a signal from each half; a file that starts with an unknown secrecy code. Grouped in `cases/keyword`, `cases/semantic`, `cases/dictionary`, `cases/hybrid` and `cases/format`. | TC-A-01..06, TC-B-01..04, TC-C-01..06, TC-E-01..08, TC-F-04/05, TC-H-01..05 |
+| `classification` | Every technique on, as in a real policy (39 cases): keyword secrecy and document types, AND of two keywords, `min_count`, regex; semantic rules with their own thresholds; weighted dictionary (thresholds, repeated and distant terms, no synonyms); hybrid rules; the file formats (PDF text and scanned, PNG, DOCX with an embedded image, PPTX, XLSX, password-protected and corrupt DOCX, both unlabelled); a red stamp on a scanned page; 12 MB and 22 MB text files with the trigger past the first 10 MB, and 22 MB text and PDF files whose dictionary or hybrid rule needs a signal from each half; a file that starts with an unknown secrecy code; a secrecy label the admin creates above secret. Grouped in `cases/keyword`, `cases/semantic`, `cases/dictionary`, `cases/hybrid` and `cases/format`. | TC-A-01..06, TC-B-01..04, TC-C-01..06, TC-E-01..08, TC-F-04/05, TC-H-01..05 |
 | `mode` | The classification techniques a policy runs: two policies with different techniques, each with keyword, dictionary and semantic conditions that all match the same file. Only the selected techniques may assign a type; a switched-off keyword secrecy rule must not run. | TC-D-01..03 |
 
 Setting rules up and tearing them down is the slow part (console work plus the
@@ -64,7 +64,7 @@ are meant to collide) belongs in a suite of its own, like `mode`.
 ## Writing a suite
 
 ```
-suites/<suite>/setup.yaml                  document types + policies, set up once per run
+suites/<suite>/setup.yaml                  document types, secrecy labels + policies, set up once per run
 suites/<suite>/cases/[<topic>/]<case>.yaml expected result per file
 data/<suite>/<case>/                       the case's documents (Git LFS)
 ```
@@ -74,6 +74,8 @@ data/<suite>/<case>/                       the case's documents (Git LFS)
 ```yaml
 document_types:                  # created for the run, deleted after it
   - {code: uat-finance, name: UAT Tài chính}
+secrecy_labels:                  # created for the run, deleted after it
+  - {code: uat_toi_mat, name: UAT Tối mật, more_secret_than: secret}
 negative_document_types: []      # types a correct agent never assigns (see coverage check)
 negative_secrecy: []             # same for secrecy levels
 data_source:
@@ -138,7 +140,7 @@ The UAT lives in a fixed place: Lac Hong Software Co., Ltd. → Software Develop
 Department, where this machine is enrolled. Its real policy and data sources stay as
 they are; a run only adds objects named `UAT …`.
 
-1. As admin in the console: creates the suite's document types, one `UAT <suite>` data
+1. As admin in the console: creates the suite's document types and secrecy labels, one `UAT <suite>` data
    source for a fresh folder under `C:\dlp-uat\<run-id>\`, and the suite's active
    `UAT …` policies. Waits for the agent to pull them.
 2. Copies every case's files into its own subfolder (all at once, or one case at a
@@ -149,8 +151,9 @@ they are; a run only adds objects named `UAT …`.
 4. Cleans up even when a step failed: deletes the copied (labeled) files, removes the
    `UAT …` data source and policies, waits for the agent to go back to the real
    policy, purges the run's inventory rows (`DELETE /api/documents?path_prefix=…`)
-   and deletes the suite's document types. It then checks that no labeled file,
-   inventory row or document type is left and that the originals in `data/` are
+   and deletes the suite's document types and secrecy labels (the purge took the
+   label history that used them). It then checks that no labeled file, inventory
+   row, document type or secrecy label is left and that the originals in `data/` are
    unlabeled.
 
 ## Layout

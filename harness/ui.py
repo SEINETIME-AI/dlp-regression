@@ -49,6 +49,18 @@ class AdminConsole:
         dialog.get_by_role("button", name="Tạo", exact=True).click()
         expect(dialog).to_be_hidden()
 
+    def create_secrecy_label(self, code: str, name: str, more_secret_than: str):
+        self.open("/taxonomy")
+        self.page.get_by_role("tab", name="Mức bảo mật").click()
+        self.page.get_by_role("button", name=re.compile("Nhãn mới")).click()
+        dialog = self.dialog()
+        dialog.get_by_label(re.compile("^Mã")).first.fill(code)
+        dialog.get_by_label(re.compile("^Tên hiển thị")).first.fill(name)
+        dialog.get_by_role("combobox", name=re.compile("^Mật hơn nhãn")).click()
+        self.page.get_by_role("option", name=re.compile(rf"\({re.escape(more_secret_than)}\)$")).click()
+        dialog.get_by_role("button", name="Tạo", exact=True).click()
+        expect(dialog).to_be_hidden()
+
     # ── Data sources ─────────────────────────────────────────────────────────
     def create_data_source(self, name: str, root: str, company: str, department: str,
                            extra_extensions: list[str] = ()):

@@ -155,6 +155,13 @@ FILES = {
     # Spelled as the customer's tester typed it in Word: Office matches names without case.
     ], custom_properties={"NextDLP_secrecy": "top_secret", "NextDLP_Domains": "",
                           "NextDLP_ClassifiedAt": "2026-01-01T00:00:00Z"}),
+    # A secrecy label created in the console for the run, above secret.
+    "classification/39-new-secrecy-label/chi-thi.docx": lambda p: write_docx(p, [
+        "Chỉ thị tối mật về lịch kiểm tra kho lưu trữ hồ sơ giấy (dữ liệu giả lập).",
+    ]),
+    "classification/39-new-secrecy-label/ke-hoach.docx": lambda p: write_docx(p, [
+        "Kế hoạch tối mật, phụ lục tuyệt mật: lộ trình di dời văn phòng đại diện (dữ liệu giả lập).",
+    ]),
     "classification/13-keyword-and-pattern/ho-so.docx": lambda p: write_docx(p, [
         "Hồ sơ khởi động, mã dự án DA-KHCN.",
         "Phạm vi: chuẩn hóa quy trình tiếp nhận yêu cầu (dữ liệu giả lập).",

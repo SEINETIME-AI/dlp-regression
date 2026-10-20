@@ -208,6 +208,12 @@ class Suite:
         for doc_type in self.setup_spec.get("document_types", []):
             if not self.api.document_type(doc_type["code"]):
                 console.create_document_type(doc_type["code"], doc_type["name"])
+        for label in self.setup_spec.get("secrecy_labels", []):
+            existing = self.api.secrecy_label(label["code"])
+            if existing and not existing["active"]:
+                raise RuntimeError(f"secrecy label {label['code']} exists but is not in use; delete it first")
+            if not existing:
+                console.create_secrecy_label(label["code"], label["name"], label["more_secret_than"])
 
         self.root.mkdir(parents=True, exist_ok=True)
         console.create_data_source(f"{settings.prefix}{self.name}", str(self.root),
@@ -288,16 +294,25 @@ class Suite:
                 if self.api.document_type(doc_type["code"]):
                     self.api.delete_document_type(doc_type["code"])
                     notes.append(f"document type {doc_type['code']}")
+            # Deletable only now: the purge took the documents and label history that used it.
+            if labels := [l["code"] for l in self.setup_spec.get("secrecy_labels", []) if self.api.secrecy_label(l["code"])]:
+                version_with_labels = self.api.machine(self.settings.machine)["policy_version"]
+                for code in labels:
+                    self.api.delete_secrecy_label(code)
+                    notes.append(f"secrecy label {code}")
+                self.wait_for_agent_policy(version_with_labels, "the agent to drop the suite's secrecy labels")
         except Exception as error:  # noqa: BLE001
             problems.append(str(error))
 
-        # Nothing of the run may outlive it: no labeled file, no inventory row, no document type.
+        # Nothing of the run may outlive it: no labeled file, no inventory row, no document type or secrecy label.
         if self.root.exists():
             problems.append(f"work folder {self.root} still exists")
         if rows := [d["file_path"] for d in self.run_documents()]:
             problems.append(f"inventory rows left: {rows}")
         if types := [t["code"] for t in self.setup_spec.get("document_types", []) if self.api.document_type(t["code"])]:
             problems.append(f"document types left: {types}")
+        if labels := [l["code"] for l in self.setup_spec.get("secrecy_labels", []) if self.api.secrecy_label(l["code"])]:
+            problems.append(f"secrecy labels left: {labels}")
         if labeled := [str(s) for case in self.cases for s in case.sources()
                        if s.suffix.lower() in LABELED_SUFFIXES and embedded_label(s)
                        and not case.expected[s.name].get("starts_labelled", False)]:
