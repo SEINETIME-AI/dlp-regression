@@ -112,6 +112,8 @@ class AdminConsole:
                 self.pick(card.get_by_role("combobox", name="Mức bảo mật"), secrecy_names[condition["secrecy"]])
             if condition.get("document_type"):
                 card.get_by_role("combobox", name="Loại tài liệu").click()
+                # Searching shows a child type too; the tree starts collapsed.
+                self.page.get_by_placeholder("Tìm theo tên hoặc mã…").fill(type_names[condition["document_type"]])
                 # Exact: "UAT Công nợ" must not also match "UAT Công nợ (ngưỡng 0.85)".
                 self.page.get_by_role("treeitem", name=type_names[condition["document_type"]], exact=True).click()
                 # The picker closes itself on select; an Escape here would close the editor instead.
