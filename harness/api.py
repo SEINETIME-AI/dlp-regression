@@ -49,6 +49,9 @@ class Api:
     def document_type(self, code: str):
         return next((t for t in self.items("/api/document-types") if t["code"] == code), None)
 
+    def secrecy_label(self, code: str):
+        return next((s for s in self.items("/api/taxonomy/secrecy-labels") if s["code"] == code), None)
+
     def documents(self, department: str) -> list:
         return self.items("/api/documents", department=department, limit=200)
 
@@ -63,6 +66,9 @@ class Api:
 
     def delete_document_type(self, code: str):
         self.call("DELETE", f"/api/document-types/{urllib.parse.quote(code)}")
+
+    def delete_secrecy_label(self, code: str):
+        self.call("DELETE", f"/api/taxonomy/secrecy-labels/{urllib.parse.quote(code)}")
 
     def delete_uat_objects(self, prefix: str) -> list[str]:
         """Removes only data sources and policies the UAT created (name starts with prefix)."""

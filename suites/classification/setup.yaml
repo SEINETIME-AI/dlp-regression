@@ -30,6 +30,11 @@ document_types:
   - {code: uat-kiem-ke, name: UAT Kiểm kê}
   - {code: uat-dau-moc, name: UAT Dấu mộc}
 
+# A secrecy label the admin adds above secret, created in the console for the run
+# and deleted after it (the purge takes the documents and label history using it).
+secrecy_labels:
+  - {code: uat_toi_mat, name: UAT Tối mật, more_secret_than: secret}
+
 # Types a correct agent never assigns here; the coverage check skips them
 # (negative_secrecy does the same for secrecy levels).
 negative_document_types: [uat-dict-default, uat-cong-no-strict]
@@ -48,6 +53,9 @@ policies:
       - name: UAT tuyệt mật
         secrecy: secret
         keyword: tuyệt mật
+      - name: UAT tối mật
+        secrecy: uat_toi_mat
+        keyword: tối mật
       - name: UAT phiếu chi
         document_type: uat-finance
         keyword: phiếu chi
