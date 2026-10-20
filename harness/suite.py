@@ -233,7 +233,13 @@ class Suite:
     def wait_for_agent_policy(self, version_before, what: str):
         def pulled():
             machine = self.api.machine(self.settings.machine)
-            return not machine["policy_dirty"] and machine["policy_version"] != version_before
+            if machine["policy_dirty"]:
+                return False
+            if machine["policy_version"] != version_before:
+                return True
+            # With no active policy left (a fresh install has no real one), the agent
+            # runs an empty policy and the backend keeps the machine's last version.
+            return not any(p.get("is_active") for p in self.api.department_policies(self.settings.department_code))
         wait_until(pulled, self.settings.policy_timeout_s, what=what)
 
     def classify(self, sequential: bool):
