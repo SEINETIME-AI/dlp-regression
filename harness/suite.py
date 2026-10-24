@@ -16,6 +16,7 @@ from playwright.sync_api import Browser
 from harness.api import Api
 from harness.config import Settings
 from harness.files import LABELED_SUFFIXES, embedded_label
+from harness.smb import SmbShare, remove_leftovers as remove_smb_leftovers
 from harness.ui import AdminConsole
 
 
@@ -133,6 +134,14 @@ class Suite:
         self.cases = [Case(p, settings.data_dir / self.name, self.root, self.backend_result) for p in case_specs]
         self.result = SuiteResult(self.name)
         self.policy_version_before = None
+        # A network data source: the agent reaches the work folder through a share on this
+        # machine. The share is the run folder, so the data source is a folder below its root.
+        self.smb = (SmbShare(settings.machine, self.name, self.root.parent)
+                    if self.setup_spec.get("data_source", {}).get("smb") else None)
+
+    def agent_path(self, local: Path) -> str:
+        """How the agent and the backend name a file the run dropped locally."""
+        return self.smb.to_unc(local) if self.smb else str(local)
 
     # ── Run ──────────────────────────────────────────────────────────────────
     def run(self, browser: Browser, keep: bool, sequential: bool, report) -> SuiteResult:
@@ -217,9 +226,13 @@ class Suite:
                 console.create_secrecy_label(label["code"], label["name"], label["more_secret_than"])
 
         self.root.mkdir(parents=True, exist_ok=True)
-        console.create_data_source(f"{settings.prefix}{self.name}", str(self.root),
+        smb = None
+        if self.smb:
+            self.smb.create()
+            smb = {"scanner": settings.machine, "username": self.smb.username, "password": self.smb.password}
+        console.create_data_source(f"{settings.prefix}{self.name}", self.agent_path(self.root),
                                    settings.company_name, settings.department_name,
-                                   self.setup_spec.get("data_source", {}).get("extra_extensions", []))
+                                   self.setup_spec.get("data_source", {}).get("extra_extensions", []), smb)
 
         secrecy_names = {s["code"]: s["display_name"] for s in self.api.items("/api/taxonomy/secrecy-labels")}
         type_names = {t["code"]: t["name"] for t in self.setup_spec.get("document_types", [])}
@@ -233,7 +246,13 @@ class Suite:
     def wait_for_agent_policy(self, version_before, what: str):
         def pulled():
             machine = self.api.machine(self.settings.machine)
-            return not machine["policy_dirty"] and machine["policy_version"] != version_before
+            if machine["policy_dirty"]:
+                return False
+            if machine["policy_version"] != version_before:
+                return True
+            # With no active policy left (a fresh install has no real one), the agent
+            # runs an empty policy and the backend keeps the machine's last version.
+            return not any(p.get("is_active") for p in self.api.department_policies(self.settings.department_code))
         wait_until(pulled, self.settings.policy_timeout_s, what=what)
 
     def classify(self, sequential: bool):
@@ -261,7 +280,7 @@ class Suite:
             if case.result.error:
                 continue
             for name in case.expected:
-                path = str(case.root / name)
+                path = self.agent_path(case.root / name)
 
                 def arrived():
                     return self.api.items("/api/agent-events", event_type="file_classified", file_path=path, limit=50) or None
@@ -279,14 +298,14 @@ class Suite:
     def backend_result(self, path: Path) -> dict | None:
         """What the backend recorded for one file (the agent reports within ~30 s)."""
         for document in self.run_documents():
-            if document["file_path"].lower() == str(path).lower() and document["status"] != "removed":
+            if document["file_path"].lower() == self.agent_path(path).lower() and document["status"] != "removed":
                 domains = [d for d in document.get("domain_label") or [] if d != "general"]
                 return {"secrecy": document["secrecy_label"], "domains": sorted(domains)}
         return None
 
     # ── Cleanup ──────────────────────────────────────────────────────────────
     def run_documents(self) -> list[dict]:
-        root = str(self.root).lower()
+        root = self.agent_path(self.root).lower()
         return [d for d in self.api.documents(self.settings.department_code)
                 if d["file_path"].lower().startswith(root)]
 
@@ -295,10 +314,12 @@ class Suite:
         try:
             dropped = {name for case in self.cases if case.root.exists() for name in case.expected}
             # Delete while the agent still watches the folder, so it reports the deletions.
+            # A shared folder stays until the agent has dropped the data source.
             if self.root.exists():
-                shutil.rmtree(self.root, ignore_errors=True)
-            if self.root.parent.exists() and not any(self.root.parent.iterdir()):
-                self.root.parent.rmdir()
+                for child in (self.root.iterdir() if self.smb else [self.root]):
+                    shutil.rmtree(child, ignore_errors=True)
+            if not self.smb:
+                self.remove_work_folder()
             # Purging before the agent has reported the files (and their deletion) would
             # let a late report recreate rows, so wait until every file shows as removed.
             if dropped:
@@ -313,7 +334,10 @@ class Suite:
             if any(item.startswith("policy ") for item in removed):
                 self.wait_for_agent_policy(version_with_suite, "the agent to go back to the real policy")
                 notes.append("agent back on the real policy only")
-            notes.append(f"{self.api.purge_documents(str(self.root))} inventory row(s) purged")
+            if self.smb:
+                notes += remove_smb_leftovers()
+                self.remove_work_folder()
+            notes.append(f"{self.api.purge_documents(self.agent_path(self.root))} inventory row(s) purged")
             for doc_type in self.setup_spec.get("document_types", []):
                 if self.api.document_type(doc_type["code"]):
                     self.api.delete_document_type(doc_type["code"])
@@ -343,3 +367,9 @@ class Suite:
             problems.append(f"originals in data/ got a label: {labeled}")
         self.result.cleanup_ok = not problems
         self.result.cleanup = "; ".join(problems) if problems else ", ".join(notes)
+
+    def remove_work_folder(self):
+        if self.root.exists():
+            shutil.rmtree(self.root, ignore_errors=True)
+        if self.root.parent.exists() and not any(self.root.parent.iterdir()):
+            self.root.parent.rmdir()

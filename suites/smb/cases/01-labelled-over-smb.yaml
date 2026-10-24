@@ -1,0 +1,6 @@
+title: A file on the share gets its label, written back through the share
+
+expected:
+  kiem-ke.docx:
+    secrecy: confidential
+    domains: [uat-smb-kho]

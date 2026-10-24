@@ -17,6 +17,7 @@ from playwright.sync_api import sync_playwright
 from harness.api import Api
 from harness.config import Settings
 from harness.report import append_cleanup, write_log
+from harness.smb import remove_leftovers as remove_smb_leftovers
 from harness.suite import Suite
 
 
@@ -38,7 +39,8 @@ def main() -> int:
     api = Api(settings.base_url, settings.admin_user, settings.admin_password)
 
     if args.cleanup:
-        print("removed:", api.delete_uat_objects(settings.prefix) or "nothing")
+        removed = api.delete_uat_objects(settings.prefix) + remove_smb_leftovers()
+        print("removed:", removed or "nothing")
         return 0
 
     folders = sorted(p for p in settings.suites_dir.iterdir() if (p / "setup.yaml").exists())

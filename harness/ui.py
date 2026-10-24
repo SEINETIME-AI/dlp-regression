@@ -63,11 +63,14 @@ class AdminConsole:
 
     # ── Data sources ─────────────────────────────────────────────────────────
     def create_data_source(self, name: str, root: str, company: str, department: str,
-                           extra_extensions: list[str] = ()):
+                           extra_extensions: list[str] = (), smb: dict | None = None):
+        """`smb` makes it a network source: {scanner, username, password}."""
         self.open("/data-sources")
         self.page.get_by_role("button", name="Thêm nguồn dữ liệu", exact=True).click()
         dialog = self.dialog()
         dialog.get_by_label(re.compile("^Tên nguồn dữ liệu")).fill(name)
+        if smb:
+            self.pick(dialog.get_by_role("combobox", name=re.compile("^Loại nguồn")), "SMB / File Server")
         dialog.get_by_label(re.compile("^Đường dẫn")).fill(root)
         self.pick(dialog.get_by_role("combobox", name=re.compile(r"Công ty con \/ Ban chuyên môn")), company)
         # Owner is a multi-select that starts at "all departments": clear that, pick ours.
@@ -81,6 +84,12 @@ class AdminConsole:
         for extension in extra_extensions:
             include.fill(extension)
             include.press("Enter")
+        if smb:
+            # Only the scanner machine walks the share, signed in with these credentials.
+            dialog.get_by_label(re.compile("^Máy quét")).click()
+            self.page.get_by_role("option", name=re.compile(rf"^{re.escape(smb['scanner'])} — ", re.I)).click()
+            dialog.get_by_label(re.compile("^Tên đăng nhập")).fill(smb["username"])
+            dialog.get_by_label(re.compile("^Mật khẩu")).fill(smb["password"])
         dialog.get_by_role("button", name="Tạo nguồn", exact=True).click()
         expect(dialog).to_be_hidden()
 
@@ -112,6 +121,8 @@ class AdminConsole:
                 self.pick(card.get_by_role("combobox", name="Mức bảo mật"), secrecy_names[condition["secrecy"]])
             if condition.get("document_type"):
                 card.get_by_role("combobox", name="Loại tài liệu").click()
+                # Searching shows a child type too; the tree starts collapsed.
+                self.page.get_by_placeholder("Tìm theo tên hoặc mã…").fill(type_names[condition["document_type"]])
                 # Exact: "UAT Công nợ" must not also match "UAT Công nợ (ngưỡng 0.85)".
                 self.page.get_by_role("treeitem", name=type_names[condition["document_type"]], exact=True).click()
                 # The picker closes itself on select; an Escape here would close the editor instead.
