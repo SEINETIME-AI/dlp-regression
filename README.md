@@ -33,7 +33,7 @@ Settings come from environment variables, with defaults for the dev stack:
 .\.venv\Scripts\python.exe run.py --all --sequential                     # one case at a time
 .\.venv\Scripts\python.exe run.py --all --headed                         # watch the browser
 .\.venv\Scripts\python.exe run.py --all --keep                           # keep what the run created
-.\.venv\Scripts\python.exe run.py --cleanup                              # remove leftovers
+.\.venv\Scripts\python.exe run.py --cleanup                              # remove leftovers (also the smb suite's share and account)
 ```
 
 `--case` takes the case name (file name without `.yaml`), wherever the case sits
@@ -51,6 +51,7 @@ start the service, run the suites, then put the backup back (all as administrato
 |---|---|---|
 | `classification` | Every technique on, as in a real policy (39 cases): keyword secrecy and document types, AND of two keywords, `min_count`, regex; semantic rules with their own thresholds; weighted dictionary (thresholds, repeated and distant terms, no synonyms); hybrid rules; the file formats (PDF text and scanned, PNG, DOCX with an embedded image, PPTX, XLSX, password-protected and corrupt DOCX, both unlabelled); a red stamp on a scanned page; 12 MB and 22 MB text files with the trigger past the first 10 MB, and 22 MB text and PDF files whose dictionary or hybrid rule needs a signal from each half; a file that starts with an unknown secrecy code; a secrecy label the admin creates above secret. Grouped in `cases/keyword`, `cases/semantic`, `cases/dictionary`, `cases/hybrid` and `cases/format`. | TC-A-01..06, TC-B-01..04, TC-C-01..06, TC-E-01..08, TC-F-04/05, TC-H-01..05 |
 | `mode` | The classification techniques a policy runs: two policies with different techniques, each with keyword, dictionary and semantic conditions that all match the same file. Only the selected techniques may assign a type; a switched-off keyword secrecy rule must not run. | TC-D-01..03 |
+| `smb` | A network data source: the run shares its work folder on this machine (a hidden share and a local account, both removed afterwards), the admin adds it as an SMB data source with this machine as scanner, and the agent signs in, classifies a file and writes its label back through the share; a second file that matches nothing stays unlabelled. Needs an elevated prompt, and the backend needs `SOURCE_SECRETS_KEY` to store the share's password. | — |
 
 Setting rules up and tearing them down is the slow part (console work plus the
 agent's 20 s heartbeat), so a suite does it once and then checks all its cases
@@ -80,6 +81,7 @@ negative_document_types: []      # types a correct agent never assigns (see cove
 negative_secrecy: []             # same for secrecy levels
 data_source:
   extra_extensions: [.png, .pptx]  # the console form starts with .pdf/.docx/.xlsx
+  smb: true                        # optional: reach the work folder through an SMB share (run as administrator)
 policies:                        # names must start with "UAT "
   - name: UAT example
     classification_methods: [keyword, dictionary]   # optional; default every technique

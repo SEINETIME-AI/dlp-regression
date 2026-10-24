@@ -76,6 +76,14 @@ FILES = {
     "mode/02-other-text-matches-nothing/thuc-don.docx": lambda p: write_docx(p, [
         "Thực đơn bữa trưa tuần sau của căng tin gồm cơm gà, canh rau và trái cây (dữ liệu giả lập).",
     ]),
+    # Read and labelled through an SMB share.
+    "smb/01-labelled-over-smb/kiem-ke.docx": lambda p: write_docx(p, [
+        "Biên bản kiểm kê kho hồ sơ quý ba tại chi nhánh phía nam.",
+        "Số thùng hồ sơ đã đối chiếu khớp với sổ theo dõi (dữ liệu giả lập).",
+    ]),
+    "smb/02-no-match-over-smb/cay-xanh.docx": lambda p: write_docx(p, [
+        "Lịch tưới cây xanh ở sảnh và ban công các tầng trong tháng tới (dữ liệu giả lập).",
+    ]),
     # Customer test cases (TC-…); triggers stay off the real policy and the other rules.
     "classification/18-and-both-keywords/dieu-dong.docx": lambda p: write_docx(p, [
         "Lệnh điều động xe công vụ cho đoàn công tác tuần sau (dữ liệu giả lập).",

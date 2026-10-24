@@ -1,0 +1,23 @@
+title: SMB data source — the agent reads and labels files on a network share
+
+# The data source is a UNC path (\<this machine>\uat-smb-smb$) the agent signs
+# in to with a local account the run creates; the share, the account and its
+# password exist only for the run. Covers the agent's SMB session (connect with
+# the console's credentials), the watcher and baseline walk over the share, and
+# the embedded label written back through it.
+# Topic (records-room stocktake) stays clear of the department's real policy
+# and the other suites' triggers.
+
+document_types:
+  - {code: uat-smb-kho, name: UAT SMB Kiểm kê kho}
+
+data_source:
+  smb: true
+
+policies:
+  - name: UAT smb
+    conditions:
+      - name: UAT kiểm kê kho
+        secrecy: confidential
+        document_type: uat-smb-kho
+        keyword: kiểm kê kho hồ sơ

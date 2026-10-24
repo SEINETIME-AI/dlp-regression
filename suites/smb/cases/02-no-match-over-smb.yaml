@@ -1,0 +1,6 @@
+title: A file on the share that matches nothing stays unlabelled
+
+expected:
+  cay-xanh.docx:
+    secrecy: unlabelled
+    domains: []
