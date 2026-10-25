@@ -23,6 +23,16 @@ Settings come from environment variables, with defaults for the dev stack:
 `UAT_BASE_URL` (`http://localhost:5173`), `UAT_ADMIN_USER` / `UAT_ADMIN_PASS`
 (`admin` / `admin`), `UAT_MACHINE` (this computer's name) and `UAT_WORK_ROOT`
 (`C:\dlp-uat`). The company and department are fixed in `harness/config.py`.
+The `offline` suite also needs `UAT_BACKEND_STOP` and `UAT_BACKEND_START`, the
+commands that stop and start the backend, for the release stack:
+
+```powershell
+$env:UAT_BACKEND_STOP  = "docker stop nextdlp-release-dlp-server-1"
+$env:UAT_BACKEND_START = "docker start nextdlp-release-dlp-server-1"
+```
+
+`UAT_MAX_AGENT_RSS_MB` (2048) and `UAT_MAX_AGENT_LOG_MB` (64) are the agent health
+limits every suite checks (see below).
 
 ## Run
 
@@ -51,6 +61,9 @@ start the service, run the suites, then put the backup back (all as administrato
 |---|---|---|
 | `classification` | Every technique on, as in a real policy (39 cases): keyword secrecy and document types, AND of two keywords, `min_count`, regex; semantic rules with their own thresholds; weighted dictionary (thresholds, repeated and distant terms, no synonyms); hybrid rules; the file formats (PDF text and scanned, PNG, DOCX with an embedded image, PPTX, XLSX, password-protected and corrupt DOCX, both unlabelled); a red stamp on a scanned page; 12 MB and 22 MB text files with the trigger past the first 10 MB, and 22 MB text and PDF files whose dictionary or hybrid rule needs a signal from each half; a file that starts with an unknown secrecy code; a secrecy label the admin creates above secret. Grouped in `cases/keyword`, `cases/semantic`, `cases/dictionary`, `cases/hybrid` and `cases/format`. | TC-A-01..06, TC-B-01..04, TC-C-01..06, TC-E-01..08, TC-F-04/05, TC-H-01..05 |
 | `mode` | The classification techniques a policy runs: two policies with different techniques, each with keyword, dictionary and semantic conditions that all match the same file. Only the selected techniques may assign a type; a switched-off keyword secrecy rule must not run. | TC-D-01..03 |
+| `stamp` | Stamp detection over a sample set: round stamps in many sizes, angles, inks and formats (scanned PDF, PNG, Word), a rectangular stamp, pages without a stamp and red decoys. Reports how many stamped pages were detected and how many stamp-free pages were flagged. A sample is one more line in `STAMP_SAMPLES` (`tools/make_data.py`). | TC-H-01 |
+| `lifecycle` | What users do after a file is labelled: rename, move into a subfolder (Word and PDF), copy, and edits that raise the label, remove its trigger or change nothing. After every step the label in the file and the backend's row are checked; a rename must also keep the document's identity. | — |
+| `offline` | The backend is stopped, a labelled file is edited and a new one is added, then the backend is started: both files are labelled while it is down, and their results reach the backend after it is back. | — |
 | `smb` | A network data source: the run shares its work folder on this machine (a hidden share and a local account, both removed afterwards), the admin adds it as an SMB data source with this machine as scanner, and the agent signs in, classifies a file and writes its label back through the share; a second file that matches nothing stays unlabelled. Needs an elevated prompt, and the backend needs `SOURCE_SECRETS_KEY` to store the share's password. | — |
 
 Setting rules up and tearing them down is the slow part (console work plus the
@@ -109,6 +122,16 @@ policies:                        # names must start with "UAT "
           conditions: [{keyword: mã dự án}, {data_pattern: 'DA-[A-Z]{4}'}, {wordlist: [a, b]}]
 ```
 
+Optional in `setup.yaml`:
+
+```yaml
+metrics:
+  positive_secrecy: secret         # report how many files expecting it got it, and false alarms
+health:
+  max_rss_mb: 1500                 # this suite's own agent health limits
+  max_avg_cpu_percent: 10
+```
+
 A case:
 
 ```yaml
@@ -119,7 +142,35 @@ expected:
     domains: [uat-finance]
     result_from: backend   # optional: for a file the agent cannot label (encrypted, broken)
     starts_labelled: true  # optional: the file carries a NextDLP label before the run (TC-E-07)
+    known_issue: "…"       # optional: a failure is reported KNOWN and does not fail the case
 ```
+
+A case whose files all share one result lists none of them; every file in
+`data/<suite>/<case>/` is checked, so adding a sample means adding a file:
+
+```yaml
+title: A round company stamp is found in any format
+expect_all: {secrecy: secret, domains: [uat-stamp]}
+```
+
+A case can go on after the first result with `steps:`, things a user does to the
+file, each optionally followed by the result it must have afterwards. The label in
+the file and the backend's row are both checked; after an edit, only a report newer
+than the edit counts. The actions (`rename`, `move`, `copy`, `edit`, `drop`,
+`backend: stop|start`, `check`) are described in `harness/steps.py`, and a new one is
+one function there.
+
+```yaml
+steps:
+  - rename: {from: a.docx, to: b.docx}
+    expect: {secrecy: confidential, domains: [uat-x]}
+    same_document_as: a.docx         # the backend keeps a.docx's doc_id
+  - edit: {file: b.docx, append: "…tuyệt mật…"}
+    expect: {secrecy: secret, domains: [uat-x]}
+```
+
+A check marked `known_issue` shows as KNOWN while it fails and as FIXED once it
+passes, which is the cue to remove the marker.
 
 The result is read from the label the agent writes into the file (OOXML custom
 properties, PDF Info dictionary); for images and files with `result_from: backend`
@@ -135,6 +186,14 @@ ISO-8601 UTC time.
 On a full-suite run the harness checks coverage: every document type and secrecy
 level the setup can assign must be expected by some case, unless it is listed as
 negative. A rule no case exercises therefore cannot slip in unnoticed.
+
+## Agent health
+
+Every suite run also watches `nextdlp.exe`: it samples CPU and memory every 2 s,
+and at the end checks that the process did not restart, that the service is still
+running, the memory peak, and the size of the log folder (the agent keeps up to six
+log files of 10 MB). The result is the extra `agent-health` case in each report,
+and each report also gives the time from dropping a file to its result.
 
 ## What a suite run does
 
@@ -166,6 +225,8 @@ harness/ui.py              admin console actions (Playwright)
 harness/api.py             API client for waits and cleanup
 harness/suite.py           setup, classify, verify, coverage check, cleanup
 harness/files.py           reads the label embedded in OOXML and PDF files
+harness/steps.py           what a case does to its files after the first result
+harness/health.py          agent CPU, memory, restarts and log size during a run
 harness/report.py          the per-suite log
 harness/config.py          settings (environment variables)
 tools/make_data.py         regenerates the synthetic documents (--force to rewrite all)

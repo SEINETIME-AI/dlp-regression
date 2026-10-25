@@ -1,6 +1,9 @@
 import datetime
 from pathlib import Path
 
+# ok, failed, a known issue that still fails, a known issue that passes now
+_TAGS = {True: "ok   ", False: "BAD  ", "known": "KNOWN", "fixed": "FIXED"}
+
 
 def write_log(reports_dir: Path, result) -> Path:
     """Writes reports/<suite>.log with each case's result, replacing the last run's."""
@@ -8,9 +11,10 @@ def write_log(reports_dir: Path, result) -> Path:
     lines += [f"  [WARN] {warning}" for warning in result.warnings]
     for case in result.cases:
         lines.append(f"  {'PASS' if case.passed else 'FAIL'}  {case.name}")
-        lines += [f"        {'ok  ' if ok else 'BAD '} {message}" for ok, message in case.checks]
+        lines += [f"        {_TAGS[ok]} {message}" for ok, message in case.checks]
         if case.error:
             lines.append(f"        ERROR {case.error}")
+    lines += [f"  [METRIC] {metric}" for metric in result.metrics]
     if result.error:
         lines.append(f"  [ERROR] {result.error}")
     passed = sum(case.passed for case in result.cases)
