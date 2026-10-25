@@ -73,8 +73,33 @@ def round_stamp(diameter: int, ring_text: str, center_text: str) -> Image.Image:
     return img.filter(ImageFilter.GaussianBlur(0.6))  # ink edges, as on a scan
 
 
-def write_stamped_scan(path: str, title: str, lines: list[str], stamp: Image.Image):
-    """A scanned A4 page (image only, no text layer) with a signature block and a stamp on it."""
+def square_stamp(width: int, height: int, lines: list[str]) -> Image.Image:
+    """A red rectangular stamp (approval or title stamp): a double frame around a few lines."""
+    img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    draw.rectangle((3, 3, width - 4, height - 4), outline=STAMP_RED, width=6)
+    draw.rectangle((14, 14, width - 15, height - 15), outline=STAMP_RED, width=2)
+    font = ImageFont.truetype(BOLD_FONT, max(16, height // (len(lines) + 2)))
+    step = (height - 30) / len(lines)
+    for i, line in enumerate(lines):
+        w = draw.textlength(line, font=font)
+        draw.text(((width - w) / 2, 15 + i * step + step * 0.15), line, fill=STAMP_RED, font=font)
+    return img.filter(ImageFilter.GaussianBlur(0.6))
+
+
+def faded(stamp: Image.Image, opacity: float) -> Image.Image:
+    """The same stamp printed with less ink."""
+    alpha = stamp.getchannel("A").point(lambda a: int(a * opacity))
+    out = stamp.copy()
+    out.putalpha(alpha)
+    return out
+
+
+def scan_page(title: str, lines: list[str], stamp: Image.Image | None = None, at=(1000, 1650),
+              rotate: float = 0, extra=None) -> Image.Image:
+    """A scanned A4 page as an image: a title, body lines, a signature block and an
+    optional stamp (rotated by `rotate` degrees, its top-left corner at `at`).
+    `extra(draw, page)` adds anything else, e.g. a decoy for a negative case."""
     page = Image.new("RGB", (1654, 2339), "white")
     draw = ImageDraw.Draw(page)
     draw.text((500, 160), title, fill="black", font=ImageFont.truetype(BOLD_FONT, 44))
@@ -82,11 +107,38 @@ def write_stamped_scan(path: str, title: str, lines: list[str], stamp: Image.Ima
     for i, line in enumerate(lines):
         draw.text((150, 320 + i * 70), line, fill="black", font=body)
     draw.text((1050, 1500), "ĐẠI DIỆN BÊN GIAO", fill="black", font=body)
-    page.paste(stamp, (1000, 1650), stamp)
-    image = io.BytesIO()
-    page.save(image, "PNG")
+    if extra:
+        extra(draw, page)
+    if stamp is not None:
+        if rotate:
+            stamp = stamp.rotate(rotate, resample=Image.BICUBIC, expand=True)
+        page.paste(stamp, at, stamp)
+    return page
+
+
+def _png(image: Image.Image) -> bytes:
+    out = io.BytesIO()
+    image.save(out, "PNG")
+    return out.getvalue()
+
+
+def write_page_pdf(path: str, page: Image.Image):
+    """The page as a scanned PDF: image only, no text layer."""
     pdf = FPDF()
     pdf.add_page()
-    pdf.image(io.BytesIO(image.getvalue()), x=0, y=0, w=210)
+    pdf.image(io.BytesIO(_png(page)), x=0, y=0, w=210)
     pdf.output(path)
 
+
+def write_page_png(path: str, page: Image.Image, scale: float = 0.6):
+    """The page as a phone photo or scanner PNG (downscaled like a typical upload)."""
+    page.resize((int(page.width * scale), int(page.height * scale)), Image.LANCZOS).save(path, "PNG")
+
+
+def page_png_bytes(page: Image.Image, scale: float = 0.6) -> bytes:
+    return _png(page.resize((int(page.width * scale), int(page.height * scale)), Image.LANCZOS))
+
+
+def write_stamped_scan(path: str, title: str, lines: list[str], stamp: Image.Image):
+    """A scanned A4 page (image only, no text layer) with a signature block and a stamp on it."""
+    write_page_pdf(path, scan_page(title, lines, stamp))

@@ -16,14 +16,20 @@ from playwright.sync_api import Browser
 from harness.api import Api
 from harness.config import Settings
 from harness.files import LABELED_SUFFIXES, embedded_label
+from harness.health import AgentMonitor
 from harness.smb import SmbShare, remove_leftovers as remove_smb_leftovers
+from harness.steps import StepRunner, dropped_later, run_command, touched_names
 from harness.ui import AdminConsole
+
+# A check is ok (True), failed (False), or a failure the case marks as a known issue:
+# KNOWN while it still fails, FIXED once it passes (time to drop the known_issue).
+KNOWN, FIXED = "known", "fixed"
 
 
 @dataclass
 class CaseResult:
     name: str
-    checks: list[tuple[bool, str]] = field(default_factory=list)
+    checks: list[tuple[bool | str, str]] = field(default_factory=list)
     error: str = ""
 
     @property
@@ -40,6 +46,7 @@ class SuiteResult:
     seconds: float = 0.0
     cleanup: str = ""
     cleanup_ok: bool = True
+    metrics: list[str] = field(default_factory=list)
 
     @property
     def passed(self) -> bool:
@@ -63,19 +70,39 @@ ISO_UTC = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z")
 class Case:
     def __init__(self, spec: Path, data: Path, root: Path, backend_result):
         self.name = spec.stem
-        self.expected = yaml.safe_load(spec.read_text(encoding="utf-8"))["expected"]
+        content = yaml.safe_load(spec.read_text(encoding="utf-8"))
         self.data = data / self.name
         self.root = root / self.name
+        self.steps = content.get("steps") or []
+        later = set(dropped_later(self.steps))
+        if "expect_all" in content:
+            # Every file in the case's data folder shares one expectation: a new sample is
+            # just a new file there.
+            self.expected = {f.name: dict(content["expect_all"]) for f in sorted(self.data.iterdir())
+                             if f.is_file() and f.name not in later} if self.data.exists() else {}
+        else:
+            self.expected = content["expected"]
+        self.later = sorted(later)
         self.backend_result = backend_result  # for files that cannot carry a label (images)
         self.result = CaseResult(self.name)
+        self.dropped_at = 0.0
+        self.seen_at: dict[str, float] = {}  # file -> monotonic time its result showed up
+        self.observed: dict[str, dict] = {}
 
     def sources(self) -> list[Path]:
-        return [self.data / name for name in self.expected]
+        return [self.data / name for name in [*self.expected, *self.later]]
 
     def drop_files(self):
         self.root.mkdir(parents=True, exist_ok=True)
-        for source in self.sources():
-            shutil.copy2(source, self.root / source.name)
+        self.dropped_at = time.monotonic()
+        for name in self.expected:
+            shutil.copy2(self.data / name, self.root / name)
+
+    def record(self, ok: bool, message: str, known_issue: str | None = None):
+        if known_issue:
+            ok, message = (FIXED, f"{message} — known issue no longer reproduces, remove it: {known_issue}") if ok \
+                else (KNOWN, f"{message} — known issue: {known_issue}")
+        self.result.checks.append((ok, message))
 
     def labels(self) -> dict | None:
         labels = {}
@@ -87,16 +114,24 @@ class Case:
                             or path.suffix.lower() not in LABELED_SUFFIXES)
             try:
                 labels[name] = self.backend_result(path) if from_backend else embedded_label(path)
+                if not labels[name] and not from_backend:
+                    # Expected a label but the agent found nothing: only the backend says it is done.
+                    found = self.backend_result(path)
+                    labels[name] = found if found and found["secrecy"] == "unlabelled" else None
             except Exception:  # noqa: BLE001 — the agent may be rewriting the file right now
                 labels[name] = None
+            if labels[name] and name not in self.seen_at:
+                self.seen_at[name] = time.monotonic()
         return labels if all(labels.values()) else None
 
     def verify(self, labels: dict):
+        self.observed = labels
         for name, expected in self.expected.items():
             want = (expected["secrecy"], sorted(expected.get("domains") or []))
             got = (labels[name]["secrecy"], labels[name]["domains"])
             message = f"{name}: {got[0]} {got[1]}"
-            self.result.checks.append((got == want, message if got == want else f"{message} (want {want[0]} {want[1]})"))
+            self.record(got == want, message if got == want else f"{message} (want {want[0]} {want[1]})",
+                        expected.get("known_issue"))
             # Unlabelled is written into no file: a stale or unknown NextDLP_Secrecy is removed (TC-E-07/E-08).
             path = self.root / name
             if want[0] == "unlabelled" and path.suffix.lower() in LABELED_SUFFIXES and path.exists():
@@ -105,7 +140,8 @@ class Case:
                 except Exception:  # noqa: BLE001 — encrypted or broken files cannot carry one
                     leftover = None
                 if leftover:
-                    self.result.checks.append((False, f"{name}: still carries NextDLP_Secrecy={leftover['secrecy']}"))
+                    self.record(False, f"{name}: still carries NextDLP_Secrecy={leftover['secrecy']}",
+                                expected.get("known_issue"))
             # An embedded label also carries when it was written, as ISO-8601 UTC (TC-E-06).
             if "classified_at" in labels[name] and not ISO_UTC.fullmatch(labels[name]["classified_at"]):
                 self.result.checks.append((False, f"{name}: NextDLP_ClassifiedAt "
@@ -134,6 +170,7 @@ class Suite:
         self.cases = [Case(p, settings.data_dir / self.name, self.root, self.backend_result) for p in case_specs]
         self.result = SuiteResult(self.name)
         self.policy_version_before = None
+        self.backend_up = True
         # A network data source: the agent reaches the work folder through a share on this
         # machine. The share is the run folder, so the data source is a folder below its root.
         self.smb = (SmbShare(settings.machine, self.name, self.root.parent)
@@ -149,6 +186,8 @@ class Suite:
         started = time.monotonic()
         console = None
         self.failure_shot.unlink(missing_ok=True)
+        monitor = AgentMonitor(self.settings.agent_log.parent,
+                               {**self.settings.health_limits, **(self.setup_spec.get("health") or {})}).start()
         try:
             self.check_source_files()
             if not self.only:
@@ -161,6 +200,7 @@ class Suite:
             time.sleep(5)  # let the watcher on the new data source start
             self.classify(sequential)
             self.check_event_findings()
+            self.run_steps()
         except Exception as error:  # noqa: BLE001 — every failure must still reach cleanup and the report
             self.result.error = f"{type(error).__name__}: {error}"
             if console:
@@ -168,7 +208,17 @@ class Suite:
                     console.screenshot(self.failure_shot)
                 except Exception:  # noqa: BLE001
                     pass
-        self.result.cases = [case.result for case in self.cases]
+        finally:
+            if not self.backend_up:  # a failed step must not leave the stack without its server
+                try:
+                    self.set_backend("start")
+                except Exception as error:  # noqa: BLE001
+                    self.result.error += f"; backend not restarted: {error}"
+        health = CaseResult("agent-health")
+        for ok, message in monitor.stop():
+            health.checks.append((ok, message))
+        self.result.cases = [case.result for case in self.cases] + [health]
+        self.result.metrics = self.metrics()
         self.result.seconds = time.monotonic() - started
         report(self.result)
         if not keep:
@@ -178,8 +228,10 @@ class Suite:
     def check_coverage(self):
         """Every document type and secrecy level the setup can assign shows up in some case,
         so a rule no case exercises cannot slip in. Run on the whole suite only."""
-        expected_types = {t for case in self.cases for e in case.expected.values() for t in e.get("domains") or []}
-        expected_secrecy = {e["secrecy"] for case in self.cases for e in case.expected.values()}
+        expectations = [e for case in self.cases for e in case.expected.values()]
+        expectations += [s["expect"] for case in self.cases for s in case.steps if "expect" in s]
+        expected_types = {t for e in expectations for t in e.get("domains") or []}
+        expected_secrecy = {e["secrecy"] for e in expectations}
         negatives = set(self.setup_spec.get("negative_document_types", []))
         types = {t["code"] for t in self.setup_spec.get("document_types", [])} - negatives
         secrecy = {c["secrecy"] for p in self.setup_spec["policies"] for c in p["conditions"] if c.get("secrecy")}
@@ -193,10 +245,12 @@ class Suite:
             subprocess.run([sys.executable, "make_data.py"], cwd=self.settings.data_dir.parent / "tools", check=True)
         seen = {}
         for case in self.cases:
+            if not case.expected:
+                raise ValueError(f"case {case.name} has no files (expected, or expect_all over {case.data})")
             for source in case.sources():
                 if not source.exists():
                     raise FileNotFoundError(f"missing test file {source}")
-                starts_labelled = case.expected[source.name].get("starts_labelled", False)
+                starts_labelled = case.expected.get(source.name, {}).get("starts_labelled", False)
                 if source.suffix.lower() in LABELED_SUFFIXES and not starts_labelled and embedded_label(source):
                     raise RuntimeError(f"{source} already carries a NextDLP label; regenerate data/")
                 digest = hashlib.sha256(source.read_bytes()).hexdigest()
@@ -303,6 +357,60 @@ class Suite:
                 return {"secrecy": document["secrecy_label"], "domains": sorted(domains)}
         return None
 
+    def backend_document(self, path: Path) -> dict | None:
+        """The backend's live inventory row for one file, as it is."""
+        target = self.agent_path(path).lower()
+        return next((d for d in self.run_documents()
+                     if d["file_path"].lower() == target and d["status"] != "removed"), None)
+
+    # ── After classification ─────────────────────────────────────────────────
+    def run_steps(self):
+        """What users do to labelled files (rename, copy, edit, …), one case at a time."""
+        for case in self.cases:
+            if case.steps and not case.result.error:
+                StepRunner(case, self).run()
+
+    def set_backend(self, state: str):
+        command = {"stop": self.settings.backend_stop, "start": self.settings.backend_start}[state]
+        if not command:
+            raise RuntimeError(f"set UAT_BACKEND_{state.upper()} to the command that {state}s the backend")
+        run_command(command)
+        if state == "start":
+            def answers():
+                try:
+                    return self.api.items("/api/machines") is not None
+                except Exception:  # noqa: BLE001 — still starting
+                    return False
+            wait_until(answers, self.settings.policy_timeout_s, what="the backend to answer again")
+        self.backend_up = state == "start"
+
+    def metrics(self) -> list[str]:
+        """Time from dropping a file to its result, for every suite; with `metrics:
+        {positive_secrecy: …}` in setup.yaml also how well that level is detected."""
+        rows = [(case, name, expected) for case in self.cases for name, expected in case.expected.items()
+                if name in case.seen_at]
+        if not rows:
+            return []
+        times = sorted((case.seen_at[name] - case.dropped_at, name) for case, name, _ in rows)
+        lines = [f"{len(rows)} file(s): result after {times[len(times) // 2][0]:.0f}s median, "
+                 f"{times[-1][0]:.0f}s max ({times[-1][1]})"]
+        positive = (self.setup_spec.get("metrics") or {}).get("positive_secrecy")
+        if positive:
+            counts = {"hit": [], "missed": [], "false alarm": [], "rejected": []}
+            for case, name, expected in rows:
+                got = case.observed.get(name, {}).get("secrecy")
+                want_positive, got_positive = expected["secrecy"] == positive, got == positive
+                key = ("hit" if got_positive else "missed") if want_positive else \
+                      ("false alarm" if got_positive else "rejected")
+                counts[key].append(name)
+            positives = len(counts["hit"]) + len(counts["missed"])
+            negatives = len(counts["false alarm"]) + len(counts["rejected"])
+            lines.append(f"{positive}: detected {len(counts['hit'])}/{positives}, "
+                         f"false alarms {len(counts['false alarm'])}/{negatives}")
+            lines += [f"{key}: {', '.join(sorted(names))}" for key in ("missed", "false alarm")
+                      if (names := counts[key])]
+        return lines
+
     # ── Cleanup ──────────────────────────────────────────────────────────────
     def run_documents(self) -> list[dict]:
         root = self.agent_path(self.root).lower()
@@ -312,7 +420,8 @@ class Suite:
     def cleanup(self):
         notes, problems = [], []
         try:
-            dropped = {name for case in self.cases if case.root.exists() for name in case.expected}
+            dropped = {name for case in self.cases if case.root.exists()
+                       for name in [*case.expected, *touched_names(case.steps)]}
             # Delete while the agent still watches the folder, so it reports the deletions.
             # A shared folder stays until the agent has dropped the data source.
             if self.root.exists():
@@ -363,7 +472,7 @@ class Suite:
             problems.append(f"secrecy labels left: {labels}")
         if labeled := [str(s) for case in self.cases for s in case.sources()
                        if s.suffix.lower() in LABELED_SUFFIXES and embedded_label(s)
-                       and not case.expected[s.name].get("starts_labelled", False)]:
+                       and not case.expected.get(s.name, {}).get("starts_labelled", False)]:
             problems.append(f"originals in data/ got a label: {labeled}")
         self.result.cleanup_ok = not problems
         self.result.cleanup = "; ".join(problems) if problems else ", ".join(notes)

@@ -1,0 +1,20 @@
+title: Lifecycle — the label stays right after users rename, move, copy and edit files (checklist item 4)
+
+# Each case starts from a labelled file, then runs `steps:` (see harness/steps.py):
+# after every step the label in the file and the backend's inventory row are
+# checked. An edit only counts once the backend has a newer report than the edit.
+# Triggers: "hồ sơ lưu trữ" (confidential + type) and "tuyệt mật" (secret).
+
+document_types:
+  - {code: uat-lc-luu-tru, name: UAT Hồ sơ lưu trữ}
+
+policies:
+  - name: UAT lifecycle
+    conditions:
+      - name: UAT hồ sơ lưu trữ
+        secrecy: confidential
+        document_type: uat-lc-luu-tru
+        keyword: hồ sơ lưu trữ
+      - name: UAT tuyệt mật
+        secrecy: secret
+        keyword: tuyệt mật

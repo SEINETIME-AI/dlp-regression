@@ -22,6 +22,17 @@ class Settings:
     department_code: str = "software-dev"
     department_name: str = "Software Development Department"
     prefix: str = "UAT "
+    # Agent health limits for every suite (a suite's `health:` overrides them). The log
+    # folder holds up to 6 files of 10 MB (the current one and 5 rotations). The
+    # classification suite's 22 MB files take the agent to ~2.6 GB (2026-10-25).
+    health_limits: dict = field(default_factory=lambda: {
+        "max_rss_mb": int(os.environ.get("UAT_MAX_AGENT_RSS_MB", "3072")),
+        "max_log_mb": int(os.environ.get("UAT_MAX_AGENT_LOG_MB", "64")),
+    })
+    # How a suite with `backend: stop/start` steps takes the server away from the agent,
+    # e.g. "docker stop nextdlp-release-dlp-server-1"; such a suite fails without them.
+    backend_stop: str = os.environ.get("UAT_BACKEND_STOP", "")
+    backend_start: str = os.environ.get("UAT_BACKEND_START", "")
     policy_timeout_s: int = 240
     classify_timeout_s: int = 240
     data_dir: Path = field(default=REPO_ROOT / "data")

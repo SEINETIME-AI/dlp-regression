@@ -1,0 +1,5 @@
+title: Red ink that is not a stamp (a heading, a ring, a logo) is not taken for one
+expect_all:
+  secrecy: unlabelled
+  domains: []
+  known_issue: the stamp model scores red headings, rings and logos 0.88-0.95 (needs negatives in training)

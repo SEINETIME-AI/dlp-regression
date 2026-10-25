@@ -1,0 +1,16 @@
+title: An edit and a new file while the server is down are labelled at once and reach the backend later
+expected:
+  so-tay.docx: {secrecy: confidential, domains: [uat-off-so-tay]}
+steps:
+  - backend: stop
+  - edit: {file: so-tay.docx, append: "Mục tuyệt mật: mã khóa tủ điện trung tâm (dữ liệu giả lập)."}
+    expect: {secrecy: secret, domains: [uat-off-so-tay]}
+  - drop: ghi-chep-offline.docx
+    expect: {secrecy: confidential, domains: [uat-off-so-tay]}
+  - backend: start
+  - check: {file: so-tay.docx}
+    check_in: [backend]
+    expect: {secrecy: secret, domains: [uat-off-so-tay]}
+  - check: {file: ghi-chep-offline.docx}
+    check_in: [backend]
+    expect: {secrecy: confidential, domains: [uat-off-so-tay]}

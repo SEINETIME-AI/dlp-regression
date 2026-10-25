@@ -1,0 +1,4 @@
+title: A scanned page without a stamp, with or without a signature, stays unlabelled
+expect_all:
+  secrecy: unlabelled
+  domains: []
