@@ -1,0 +1,29 @@
+title: Stamp detection — a sample set with detection counts (checklist item 1)
+
+# The stamp is the only signal on every page: no file carries a keyword, so the
+# result is the stamp rule's or nothing. A case is a folder of samples with one
+# shared expectation (`expect_all`), so a new sample is one more file in
+# data/stamp/<case>/ (generated from STAMP_SAMPLES in tools/make_data.py).
+# The run also reports how many stamped pages were detected and how many pages
+# without a stamp were flagged, and the time each result took.
+#
+# The threshold sits below every round stamp's score measured with
+# `nextdlp classify` (0.82-0.96) and above the real policy's 0.75, which it
+# replaces while the suite runs (the highest stamp threshold wins the merge).
+
+document_types:
+  - {code: uat-stamp, name: UAT Có dấu mộc}
+
+data_source:
+  extra_extensions: [.png]
+
+metrics:
+  positive_secrecy: secret
+
+policies:
+  - name: UAT stamp
+    conditions:
+      - name: UAT có dấu mộc
+        secrecy: secret
+        document_type: uat-stamp
+        stamp: {threshold: 0.8}

@@ -1,0 +1,5 @@
+title: A rectangular approval stamp counts as a stamp
+expect_all:
+  secrecy: secret
+  domains: [uat-stamp]
+  known_issue: the stamp model was trained on round stamps only and scores rectangular ones 0

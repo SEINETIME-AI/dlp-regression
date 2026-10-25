@@ -7,15 +7,20 @@ change on every run); pass --force to rewrite them all.
 
   python tools/make_data.py [--force]
 """
+import math
 import sys
 from pathlib import Path
+
+from PIL import Image, ImageFont
 
 from make_docx import write_docx
 from make_pptx import write_pptx
 from make_xlsx import write_xlsx
 from make_large import write_large_pdf, write_large_text
 from make_broken import write_corrupt_docx, write_password_docx
-from make_media import round_stamp, write_stamped_scan, text_image, write_png, write_scanned_pdf, write_text_pdf
+from make_media import (BOLD_FONT, STAMP_RED, faded, page_png_bytes, round_stamp, scan_page, square_stamp,
+                        text_image, write_page_pdf, write_page_png, write_png, write_scanned_pdf,
+                        write_stamped_scan, write_text_pdf)
 
 DATA = Path(__file__).resolve().parent.parent / "data"
 
@@ -191,6 +196,122 @@ FILES = {
         "Hạng mục: thay máy chủ và tường lửa (dữ liệu giả lập).",
     ]),
 }
+
+
+# ── stamp suite ──────────────────────────────────────────────────────────────
+# One line per sample: (case folder, file, page). The page's title differs per sample so
+# no two files share content. The format comes from the extension: .pdf is a scanned
+# page, .png an image of it, .docx a Word file with the image embedded.
+_LINES = ["Hôm nay, hai bên tiến hành bàn giao thiết bị văn phòng.",
+          "Bên nhận đã kiểm tra số lượng và tình trạng thiết bị.", "(dữ liệu giả lập)"]
+
+
+def _round(diameter=360, center="MẬT"):
+    return round_stamp(diameter, "CÔNG TY TNHH THỬ NGHIỆM UAT * HÀ NỘI * ", center)
+
+
+def _blue(stamp):
+    red, green, blue, alpha = stamp.split()
+    return Image.merge("RGBA", (blue, green, red, alpha))
+
+
+def _red_title(draw, page):
+    draw.text((300, 900), "THÔNG BÁO KHẨN", fill=STAMP_RED, font=ImageFont.truetype(BOLD_FONT, 110))
+
+
+def _red_ring(draw, page):
+    draw.ellipse((1000, 1650, 1360, 2010), outline=STAMP_RED, width=8)
+
+
+def _red_logo(draw, page):
+    draw.ellipse((120, 120, 300, 300), fill=STAMP_RED)
+    draw.text((160, 180), "UAT", fill="white", font=ImageFont.truetype(BOLD_FONT, 50))
+
+
+def _signature(draw, page):
+    draw.line([(1050 + i * 12, 1700 + int(40 * math.sin(i / 2.5))) for i in range(40)], fill=(20, 20, 120), width=5)
+
+
+def _second_stamp(draw, page):
+    stamp = _round(300, "KHẨN")
+    page.paste(stamp, (200, 1700), stamp)
+
+
+def _flat(stamp):
+    page = Image.new("RGB", stamp.size, "white")
+    page.paste(stamp, (0, 0), stamp)
+    return page
+
+
+STAMP_SAMPLES = [
+    ("round-stamp", "co-ban.pdf", lambda: scan_page("BIÊN BẢN GIAO NHẬN SỐ 01", _LINES, _round())),
+    ("round-stamp", "dau-nho.pdf", lambda: scan_page("BIÊN BẢN GIAO NHẬN SỐ 02", _LINES, _round(220))),
+    ("round-stamp", "dau-lon.pdf", lambda: scan_page("BIÊN BẢN GIAO NHẬN SỐ 03", _LINES, _round(520), at=(900, 1550))),
+    ("round-stamp", "dau-xoay.pdf", lambda: scan_page("BIÊN BẢN GIAO NHẬN SỐ 04", _LINES, _round(), rotate=20)),
+    ("round-stamp", "dau-de-chu.pdf", lambda: scan_page("BIÊN BẢN GIAO NHẬN SỐ 05", _LINES, _round(), at=(700, 250))),
+    ("round-stamp", "dau-mo.pdf", lambda: scan_page("BIÊN BẢN GIAO NHẬN SỐ 06", _LINES, faded(_round(), 0.5))),
+    ("round-stamp", "chu-khac.pdf", lambda: scan_page("BIÊN BẢN GIAO NHẬN SỐ 07", _LINES, _round(center="ĐÃ KÝ"))),
+    ("round-stamp", "hai-dau.pdf", lambda: scan_page("BIÊN BẢN GIAO NHẬN SỐ 08", _LINES, _round(), extra=_second_stamp)),
+    ("round-stamp", "dau-xanh.pdf", lambda: scan_page("BIÊN BẢN GIAO NHẬN SỐ 09", _LINES, _blue(_round()))),
+    ("round-stamp", "anh-chup.png", lambda: scan_page("BIÊN BẢN GIAO NHẬN SỐ 10", _LINES, _round())),
+    ("round-stamp", "anh-mo.png", lambda: scan_page("BIÊN BẢN GIAO NHẬN SỐ 11", _LINES, _round())),
+    ("round-stamp", "word-ca-trang.docx", lambda: scan_page("BIÊN BẢN GIAO NHẬN SỐ 12", _LINES, _round())),
+    ("round-stamp", "word-chi-dau.docx", lambda: _flat(_round(360, "UAT"))),
+    ("rectangular-stamp", "dau-vuong.pdf",
+     lambda: scan_page("BIÊN BẢN GIAO NHẬN SỐ 13", _LINES, square_stamp(520, 200, ["ĐÃ PHÊ DUYỆT", "PHÒNG HÀNH CHÍNH"]))),
+    ("no-stamp", "khong-dau.pdf", lambda: scan_page("BIÊN BẢN GIAO NHẬN SỐ 14", _LINES)),
+    ("no-stamp", "khong-dau.png", lambda: scan_page("BIÊN BẢN GIAO NHẬN SỐ 15", _LINES)),
+    ("no-stamp", "chu-ky.pdf", lambda: scan_page("BIÊN BẢN GIAO NHẬN SỐ 16", _LINES, extra=_signature)),
+    ("red-decoys", "tieu-de-do.pdf", lambda: scan_page("BIÊN BẢN GIAO NHẬN SỐ 17", _LINES, extra=_red_title)),
+    ("red-decoys", "vong-tron-do.pdf", lambda: scan_page("BIÊN BẢN GIAO NHẬN SỐ 18", _LINES, extra=_red_ring)),
+    ("red-decoys", "logo-do.pdf", lambda: scan_page("BIÊN BẢN GIAO NHẬN SỐ 19", _LINES, extra=_red_logo)),
+]
+_LOW_RES = {"anh-mo.png": 0.3}
+
+
+def _write_sample(path: str, page):
+    if path.endswith(".pdf"):
+        write_page_pdf(path, page)
+    elif path.endswith(".png"):
+        write_page_png(path, page, _LOW_RES.get(Path(path).name, 0.6))
+    else:
+        write_docx(path, [f"Biên bản kèm ảnh quét {Path(path).stem} (dữ liệu giả lập)."],
+                   media={"image1.png": page_png_bytes(page, 1.0 if page.width < 1000 else 0.6)})
+
+
+for _case, _name, _page in STAMP_SAMPLES:
+    FILES[f"stamp/{_case}/{_name}"] = lambda p, page=_page: _write_sample(p, page())
+
+# ── lifecycle and offline suites ─────────────────────────────────────────────
+FILES.update({
+    "lifecycle/rename-keeps-label/ho-so-doi-ten.docx": lambda p: write_docx(p, [
+        "Danh mục hồ sơ lưu trữ của phòng hành chính năm nay (dữ liệu giả lập).",
+    ]),
+    "lifecycle/move-keeps-label/ho-so-chuyen.docx": lambda p: write_docx(p, [
+        "Hồ sơ lưu trữ về việc sắp xếp kho giấy tờ tầng hai (dữ liệu giả lập).",
+    ]),
+    "lifecycle/move-keeps-label/ban-luu.pdf": lambda p: write_text_pdf(p, [
+        "Bản hồ sơ lưu trữ đã số hóa của tổ văn thư (dữ liệu giả lập).",
+    ]),
+    "lifecycle/copy-carries-label/ho-so-goc.docx": lambda p: write_docx(p, [
+        "Mục lục hồ sơ lưu trữ bàn giao cho chi nhánh mới (dữ liệu giả lập).",
+    ]),
+    "lifecycle/edit-raises-secrecy/ho-so-nang.docx": lambda p: write_docx(p, [
+        "Sổ đăng ký hồ sơ lưu trữ của ban dự án (dữ liệu giả lập).",
+    ]),
+    "lifecycle/edit-removes-trigger/ho-so-bo.docx": lambda p: write_docx(p, [
+        "Bảng kê hồ sơ lưu trữ cần tiêu hủy theo kế hoạch (dữ liệu giả lập).",
+    ]),
+    "lifecycle/edit-keeps-label/ho-so-them.docx": lambda p: write_docx(p, [
+        "Quy trình mượn trả hồ sơ lưu trữ tại phòng đọc (dữ liệu giả lập).",
+    ]),
+    "offline/changes-while-offline-sync-later/so-tay.docx": lambda p: write_docx(p, [
+        "Sổ tay vận hành trạm bơm khu công nghiệp (dữ liệu giả lập).",
+    ]),
+    "offline/changes-while-offline-sync-later/ghi-chep-offline.docx": lambda p: write_docx(p, [
+        "Bổ sung sổ tay vận hành ca đêm khi mất kết nối (dữ liệu giả lập).",
+    ]),
+})
 
 if __name__ == "__main__":
     force = "--force" in sys.argv[1:]
