@@ -1,0 +1,6 @@
+title: Adding a secret trigger and saving raises the label
+expected:
+  ho-so-nang.docx: {secrecy: confidential, domains: [uat-lc-luu-tru]}
+steps:
+  - edit: {file: ho-so-nang.docx, append: "Phụ lục tuyệt mật: danh sách kho dự phòng (dữ liệu giả lập)."}
+    expect: {secrecy: secret, domains: [uat-lc-luu-tru]}

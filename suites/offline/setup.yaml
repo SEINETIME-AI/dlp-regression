@@ -1,0 +1,21 @@
+title: Offline — the agent keeps classifying without its server and reports everything once it is back (checklist item 6)
+
+# Steps stop and start the backend with UAT_BACKEND_STOP / UAT_BACKEND_START, e.g.
+#   docker stop nextdlp-release-dlp-server-1 / docker start nextdlp-release-dlp-server-1
+# While it is down only the label in the file is checked; after the restart the
+# backend must have the results of what happened offline (no lost events).
+# The run starts the backend again even when a step fails.
+
+document_types:
+  - {code: uat-off-so-tay, name: UAT Sổ tay vận hành}
+
+policies:
+  - name: UAT offline
+    conditions:
+      - name: UAT sổ tay vận hành
+        secrecy: confidential
+        document_type: uat-off-so-tay
+        keyword: sổ tay vận hành
+      - name: UAT tuyệt mật
+        secrecy: secret
+        keyword: tuyệt mật

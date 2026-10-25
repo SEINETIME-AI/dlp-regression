@@ -1,0 +1,6 @@
+title: An edit that changes nothing the rules look at keeps the label
+expected:
+  ho-so-them.docx: {secrecy: confidential, domains: [uat-lc-luu-tru]}
+steps:
+  - edit: {file: ho-so-them.docx, append: "Giờ mở cửa phòng đọc: 8 giờ đến 17 giờ (dữ liệu giả lập)."}
+    expect: {secrecy: confidential, domains: [uat-lc-luu-tru]}

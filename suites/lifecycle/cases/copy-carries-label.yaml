@@ -1,0 +1,8 @@
+title: A copy carries the label and gets its own inventory row; the original keeps its own
+expected:
+  ho-so-goc.docx: {secrecy: confidential, domains: [uat-lc-luu-tru]}
+steps:
+  - copy: {from: ho-so-goc.docx, to: ban-sao/ho-so-goc.docx}
+    expect: {secrecy: confidential, domains: [uat-lc-luu-tru]}
+  - check: {file: ho-so-goc.docx}
+    expect: {secrecy: confidential, domains: [uat-lc-luu-tru]}

@@ -1,0 +1,6 @@
+title: Removing the only trigger and saving takes the label off the file
+expected:
+  ho-so-bo.docx: {secrecy: confidential, domains: [uat-lc-luu-tru]}
+steps:
+  - edit: {file: ho-so-bo.docx, replace: ["Bảng kê đồ dùng văn phòng cần thanh lý (dữ liệu giả lập)."]}
+    expect: {secrecy: unlabelled, domains: []}

@@ -1,0 +1,8 @@
+title: A renamed file keeps its label, and the backend keeps it as the same document
+expected:
+  ho-so-doi-ten.docx: {secrecy: confidential, domains: [uat-lc-luu-tru]}
+steps:
+  - rename: {from: ho-so-doi-ten.docx, to: ho-so-da-doi-ten.docx}
+    expect: {secrecy: confidential, domains: [uat-lc-luu-tru]}
+    same_document_as: ho-so-doi-ten.docx
+    known_issue: a rename gives the file a new doc_id, so overrides and history stay behind

@@ -1,0 +1,9 @@
+title: A file moved into a subfolder keeps its label (Word and PDF)
+expected:
+  ho-so-chuyen.docx: {secrecy: confidential, domains: [uat-lc-luu-tru]}
+  ban-luu.pdf: {secrecy: confidential, domains: [uat-lc-luu-tru]}
+steps:
+  - move: {from: ho-so-chuyen.docx, to: luu-tru/2026/ho-so-chuyen.docx}
+    expect: {secrecy: confidential, domains: [uat-lc-luu-tru]}
+  - move: {from: ban-luu.pdf, to: luu-tru/2026/ban-luu.pdf}
+    expect: {secrecy: confidential, domains: [uat-lc-luu-tru]}
