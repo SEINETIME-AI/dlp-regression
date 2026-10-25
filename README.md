@@ -31,7 +31,7 @@ $env:UAT_BACKEND_STOP  = "docker stop nextdlp-release-dlp-server-1"
 $env:UAT_BACKEND_START = "docker start nextdlp-release-dlp-server-1"
 ```
 
-`UAT_MAX_AGENT_RSS_MB` (2048) and `UAT_MAX_AGENT_LOG_MB` (64) are the agent health
+`UAT_MAX_AGENT_RSS_MB` (3072) and `UAT_MAX_AGENT_LOG_MB` (64) are the agent health
 limits every suite checks (see below).
 
 ## Run
