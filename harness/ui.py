@@ -64,26 +64,42 @@ class AdminConsole:
         dialog.get_by_role("button", name="Tạo", exact=True).click()
         expect(dialog).to_be_hidden()
 
-    def rename_document_type(self, name: str, new_name: str):
-        self.open_document_types()
+    def open_secrecy_labels(self):
+        self.open("/taxonomy")
+        self.page.get_by_role("tab", name="Mức bảo mật").click()
+
+    def _taxonomy_tab(self, tab: str):
+        self.open_document_types() if tab == "Loại tài liệu" else self.open_secrecy_labels()
+
+    def rename_taxonomy_item(self, tab: str, name: str, new_name: str):
+        """`tab` is "Loại tài liệu" or "Mức bảo mật"; the same row actions sit on both."""
+        self._taxonomy_tab(tab)
         self.page.get_by_role("button", name=f"Sửa {name}", exact=True).click()
         dialog = self.dialog()
         dialog.get_by_label(re.compile("^Tên hiển thị")).first.fill(new_name)
         dialog.get_by_role("button", name="Lưu", exact=True).click()
         expect(dialog).to_be_hidden()
 
-    def deactivate_document_type(self, name: str):
-        self.open_document_types()
-        self.page.get_by_role("button", name=f"Ngừng sử dụng {name}", exact=True).click()
+    def taxonomy_action(self, tab: str, action: str, name: str):
+        """`action` is the row button's label: "Ngừng sử dụng", "Sử dụng lại" or "Xóa"."""
+        self._taxonomy_tab(tab)
+        self.page.get_by_role("button", name=f"{action} {name}", exact=True).click()
         self.page.wait_for_timeout(SHORT)
 
+    def rename_document_type(self, name: str, new_name: str):
+        self.rename_taxonomy_item("Loại tài liệu", name, new_name)
+
+    def deactivate_document_type(self, name: str):
+        self.taxonomy_action("Loại tài liệu", "Ngừng sử dụng", name)
+
     def delete_document_type(self, name: str):
-        self.open_document_types()
-        self.page.get_by_role("button", name=f"Xóa {name}", exact=True).click()
-        self.page.wait_for_timeout(SHORT)
+        self.taxonomy_action("Loại tài liệu", "Xóa", name)
 
     def document_type_row(self, name: str):
         return self.page.get_by_role("row").filter(has_text=name)
+
+    def secrecy_label_row(self, code: str):
+        return self.page.get_by_test_id(f"scale-row-{code}")
 
     def create_secrecy_label(self, code: str, name: str, more_secret_than: str):
         self.open("/taxonomy")

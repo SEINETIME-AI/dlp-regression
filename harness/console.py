@@ -12,6 +12,9 @@ from harness.config import Settings
 from harness.suite import CaseResult, SuiteResult
 from harness.ui import AdminConsole
 
+DOC_TYPES, SECRECY = "document-types", "secrecy-labels"  # API kinds
+TAB = {DOC_TYPES: "Loại tài liệu", SECRECY: "Mức bảo mật"}
+
 
 class ApiAnswers:
     """The status of every console request whose path contains `marker`."""
@@ -21,35 +24,68 @@ class ApiAnswers:
         page.on("response", lambda r: self.answers.append((r.request.method, r.url, r.status))
                 if marker in r.url else None)
 
-    def last(self, method: str) -> tuple[str, int] | None:
-        for answer_method, url, status in reversed(self.answers):
+    def last(self, method: str, since: int = 0) -> tuple[str, int] | None:
+        """The newest answer to `method` among those after the first `since` answers."""
+        for answer_method, url, status in reversed(self.answers[since:]):
             if answer_method == method:
                 return urllib.parse.unquote(url.split("/api/", 1)[-1]), status
         return None
 
 
-def _taxonomy_path(code: str) -> str:
-    return f"/api/taxonomy/document-types/{urllib.parse.quote(code, safe='')}"
+def _taxonomy_path(kind: str, code: str) -> str:
+    return f"/api/taxonomy/{kind}/{urllib.parse.quote(code, safe='')}"
 
 
-def _remove_document_types(api: Api, codes: list[str]) -> tuple[list[str], list[str]]:
-    """Deactivates and deletes the given types, children first. Returns (removed, problems)."""
+def _stored(api: Api, kind: str, code: str) -> dict | None:
+    return next((t for t in api.items(f"/api/taxonomy/{kind}") if t["code"] == code), None)
+
+
+def _remove_taxonomy(api: Api, kind: str, codes: list[str]) -> tuple[list[str], list[str]]:
+    """Deactivates and deletes the given items, children first. Returns (removed, problems)."""
     removed, problems = [], []
-    existing = {t["code"] for t in api.items("/api/taxonomy/document-types")}
+    existing = {t["code"] for t in api.items(f"/api/taxonomy/{kind}")}
     for code in codes:
         if code not in existing:
             continue
         try:
             try:
-                api.call("PATCH", _taxonomy_path(code) + "/deactivate")
+                api.call("PATCH", _taxonomy_path(kind, code) + "/deactivate")
             except ApiError as error:
                 if error.status != 409:  # 409: already inactive
                     raise
-            api.call("DELETE", _taxonomy_path(code))
-            removed.append(f"document type {code}")
+            api.call("DELETE", _taxonomy_path(kind, code))
+            removed.append(f"{kind[:-1]} {code}")
         except ApiError as error:
-            problems.append(f"document type {code} left: {error}")
+            problems.append(f"{kind[:-1]} {code} left: {error}")
     return removed, problems
+
+
+def _step(case: CaseResult, answers: ApiAnswers, action: str, method: str, expected: int, run) -> bool:
+    """Runs one console action and records the answer to its request; False ends the case."""
+    failure = ""
+    since = len(answers.answers)
+    try:
+        run()
+    except Exception as error:  # noqa: BLE001 — the console did not finish the action
+        failure = f", console stuck: {str(error).splitlines()[0]}"
+    answer = answers.last(method, since)
+    ok = not failure and answer is not None and answer[1] == expected
+    case.checks.append((ok, f"{action}: {method} {answer[0] if answer else '(no request)'} -> "
+                            f"{answer[1] if answer else '-'} (want {expected}){failure}"))
+    return ok
+
+
+def _guarded(api: Api, case: CaseResult, kind: str, codes: list[str], body) -> tuple[list[str], list[str]]:
+    """Removes leftovers of an earlier failed run, runs `body`, then removes `codes` again."""
+    _, leftovers = _remove_taxonomy(api, kind, codes)
+    if leftovers:
+        case.checks.append((False, "an earlier run's items could not be removed: " + "; ".join(leftovers)))
+        return [], leftovers
+    try:
+        body()
+    finally:
+        cleanup = _remove_taxonomy(api, kind, codes)
+    return cleanup
 
 
 def child_document_type_actions(console: AdminConsole, api: Api, case: CaseResult) -> tuple[list[str], list[str]]:
@@ -57,47 +93,65 @@ def child_document_type_actions(console: AdminConsole, api: Api, case: CaseResul
     The console sends the code as %2F; edit, deactivate and delete must all reach the type."""
     parent, child = ("uat-cha", "UAT Cha"), ("uat-cha/con", "UAT Con")
     renamed = "UAT Con đã sửa"
-    answers = ApiAnswers(console.page, "/api/taxonomy/document-types/")
-    _, leftovers = _remove_document_types(api, [child[0], parent[0]])  # an earlier run that failed
-    if leftovers:
-        case.checks.append((False, "an earlier run's types could not be removed: " + "; ".join(leftovers)))
-        return [], leftovers
-    try:
+    answers = ApiAnswers(console.page, f"/api/taxonomy/{DOC_TYPES}/")
+
+    def body():
         console.create_document_type(*parent)
         console.create_child_document_type(parent[1], *child)
-        created = next((t for t in api.items("/api/taxonomy/document-types") if t["code"] == child[0]), None)
+        created = _stored(api, DOC_TYPES, child[0])
         case.checks.append((bool(created and created.get("parent_code") == parent[0]),
                             f"child {child[0]} created under {parent[0]}"))
-
         # Each step needs the one before it, so the first failure ends the case.
-        for action, method, expected, run in (
-            ("edit", "PUT", 200, lambda: console.rename_document_type(child[1], renamed)),
-            ("deactivate", "PATCH", 200, lambda: console.deactivate_document_type(renamed)),
-            ("delete", "DELETE", 204, lambda: console.delete_document_type(renamed)),
-        ):
-            failure = ""
-            try:
-                run()
-            except Exception as error:  # noqa: BLE001 — the console did not finish the action
-                failure = f", console stuck: {str(error).splitlines()[0]}"
-            answer = answers.last(method)
-            ok = not failure and answer is not None and answer[1] == expected
-            case.checks.append((ok, f"{action}: {method} {answer[0] if answer else '(no request)'} -> "
-                                    f"{answer[1] if answer else '-'} (want {expected}){failure}"))
-            if not ok:
-                return _remove_document_types(api, [child[0], parent[0]])
-            if action == "deactivate":
-                case.checks.append((console.document_type_row(renamed).get_by_text("Ngừng dùng").count() == 1,
-                                    "deactivated child shows Ngừng dùng"))
+        if not _step(case, answers, "edit", "PUT", 200, lambda: console.rename_document_type(child[1], renamed)):
+            return
+        if not _step(case, answers, "deactivate", "PATCH", 200, lambda: console.deactivate_document_type(renamed)):
+            return
+        case.checks.append((console.document_type_row(renamed).get_by_text("Ngừng dùng").count() == 1,
+                            "deactivated child shows Ngừng dùng"))
+        if not _step(case, answers, "delete", "DELETE", 204, lambda: console.delete_document_type(renamed)):
+            return
         console.open_document_types()
         case.checks.append((console.document_type_row(renamed).count() == 0, "deleted child is gone from the tree"))
-    except Exception:
-        _remove_document_types(api, [child[0], parent[0]])
-        raise
-    return _remove_document_types(api, [child[0], parent[0]])
+
+    return _guarded(api, case, DOC_TYPES, [child[0], parent[0]], body)
 
 
-CHECKS = {"child_document_type_actions": child_document_type_actions}
+def secrecy_label_reactivate(console: AdminConsole, api: Api, case: CaseResult) -> tuple[list[str], list[str]]:
+    """Tester note on TC-A-01 (bug 70): a deactivated label (not a system one) could not be
+    switched back on, and saving it in the edit dialog switched it on without asking."""
+    code, name, renamed = "uat_tam", "UAT Tạm", "UAT Tạm đã sửa"
+    tab = TAB[SECRECY]
+    answers = ApiAnswers(console.page, f"/api/taxonomy/{SECRECY}/")
+
+    def state(expected: bool, after: str):
+        stored = _stored(api, SECRECY, code)
+        console.open_secrecy_labels()
+        chip = "Đang dùng" if expected else "Ngừng dùng"
+        case.checks.append((bool(stored) and stored["active"] is expected
+                            and console.secrecy_label_row(code).get_by_text(chip, exact=True).count() == 1,
+                            f"after {after}: {'in use' if expected else 'not in use'} (stored active="
+                            f"{stored['active'] if stored else '-'}, shows {chip})"))
+
+    def body():
+        console.create_secrecy_label(code, name, more_secret_than="public")
+        if not _step(case, answers, "deactivate", "PATCH", 200, lambda: console.taxonomy_action(tab, "Ngừng sử dụng", name)):
+            return
+        state(False, "deactivate")
+        if not _step(case, answers, "rename while not in use", "PUT", 200,
+                     lambda: console.rename_taxonomy_item(tab, name, renamed)):
+            return
+        state(False, "rename")
+        if not _step(case, answers, "use again", "PATCH", 200, lambda: console.taxonomy_action(tab, "Sử dụng lại", renamed)):
+            return
+        state(True, "use again")
+
+    return _guarded(api, case, SECRECY, [code], body)
+
+
+CHECKS = {
+    "child_document_type_actions": child_document_type_actions,
+    "secrecy_label_reactivate": secrecy_label_reactivate,
+}
 
 
 class ConsoleSuite:

@@ -4,3 +4,6 @@ cases:
   - name: child-document-type-actions
     title: A child document type whose code contains "/" can be edited, deactivated and deleted
     check: child_document_type_actions
+  - name: secrecy-label-reactivate
+    title: A deactivated label can be switched back on, and renaming it keeps it off
+    check: secrecy_label_reactivate
