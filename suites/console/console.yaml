@@ -10,3 +10,6 @@ cases:
   - name: confirm-before-deactivate
     title: Deactivate and delete ask first; cancelling changes nothing
     check: confirm_before_deactivate
+  - name: manager-sees-own-units
+    title: A department manager sees the dashboard, documents and endpoints of their own units only
+    check: manager_sees_own_units

@@ -174,10 +174,100 @@ def confirm_before_deactivate(console: AdminConsole, api: Api, case: CaseResult)
     return _guarded(api, case, DOC_TYPES, [code], body)
 
 
+UAT_UNIT, MANAGER, MANAGER_PASSWORD = "uat-phong-tam", "uat.truongphong", "Uat-TruongPhong-2026"
+REAL_UNIT = "software-dev"  # the UAT department; its documents and machines are the "other unit"
+
+
+def _remove_manager(api: Api) -> tuple[list[str], list[str]]:
+    """Deletes the UAT manager, then the UAT unit. Returns (removed, problems)."""
+    removed, problems = [], []
+    try:
+        for user in api.items("/api/users"):
+            if user["username"].lower() == MANAGER:
+                api.call("DELETE", f"/api/users/{user['id']}")
+                removed.append(f"user {MANAGER}")
+        if any(unit["id"] == UAT_UNIT for unit in api.items("/api/org-units")):
+            api.call("DELETE", f"/api/org-units/{UAT_UNIT}")
+            removed.append(f"unit {UAT_UNIT}")
+    except ApiError as error:
+        problems.append(f"manager or unit left: {error}")
+    return removed, problems
+
+
+def manager_sees_own_units(console: AdminConsole, api: Api, case: CaseResult) -> tuple[list[str], list[str]]:
+    """Backlog (bug 73; documents/endpoints since "fix bug No 25"): a department manager saw
+    the dashboard figures, documents and endpoints of every unit. A manager of an empty UAT
+    unit must see none of them, and gets the real unit's once it is added to their scope."""
+    admin_stats = api.get("/api/dashboard/summary")["stats"]
+    foreign_doc = next(iter(api.items("/api/documents", department=REAL_UNIT, limit=1)), None)
+    real_machines = api.items("/api/machines", unit=REAL_UNIT)
+    if not (admin_stats["total_documents"] and foreign_doc and real_machines):
+        case.checks.append((False, f"prerequisite: {REAL_UNIT} needs documents and a machine"))
+        return [], []
+    _, leftovers = _remove_manager(api)
+    if leftovers:
+        case.checks.append((False, "an earlier run's manager could not be removed: " + "; ".join(leftovers)))
+        return [], leftovers
+
+    parent = api.get(f"/api/org-units/{REAL_UNIT}")["parent_id"]
+    context = console.page.context.browser.new_context(viewport={"width": 1500, "height": 1000})
+    page = context.new_page()
+    manager = AdminConsole(page, console.base_url)
+
+    def summary_on_screen() -> dict:
+        with page.expect_response(lambda r: "/api/dashboard/summary" in r.url) as answer:
+            manager.open("/dashboard")
+        return answer.value.json()["stats"]
+
+    def status(path: str) -> int:
+        """A request with the manager's session, as a link to another unit's item sends it."""
+        return page.request.get(console.base_url + path).status
+
+    try:
+        api.call("POST", "/api/org-units", {"id": UAT_UNIT, "display_name": "UAT Phòng tạm",
+                                            "unit_type": "Phòng", "parent_id": parent})
+        user = api.call("POST", "/api/users", {
+            "username": MANAGER, "display_name": "UAT Trưởng phòng", "role": "department_manager",
+            "unit_ids": [UAT_UNIT], "password": MANAGER_PASSWORD, "force_password_change": False})
+        manager.login(MANAGER, MANAGER_PASSWORD)
+
+        stats = summary_on_screen()
+        case.checks.append((stats["total_documents"] == 0 and stats["sensitive_documents"] == 0
+                            and stats["total_endpoints"] == 0,
+                            f"dashboard of an empty unit: {stats['total_documents']} documents, "
+                            f"{stats['sensitive_documents']} sensitive, {stats['total_endpoints']} endpoints "
+                            f"(want 0; admin sees {admin_stats['total_documents']} documents)"))
+        with page.expect_response(lambda r: "/api/documents?" in r.url) as answer:
+            manager.open("/documents")
+        case.checks.append((answer.value.json()["total"] == 0,
+                            f"documents page lists {answer.value.json()['total']} (want 0)"))
+        doc_path = "/api/documents/" + urllib.parse.quote(foreign_doc["doc_id"], safe="")
+        machine_path = f"/api/machines/{real_machines[0]['id']}"
+        case.checks.append((status(doc_path) == 404, f"{REAL_UNIT} document by id -> {status(doc_path)} (want 404)"))
+        case.checks.append((status(machine_path) == 404,
+                            f"{REAL_UNIT} endpoint by id -> {status(machine_path)} (want 404)"))
+
+        # Same manager with the real unit added: its figures and items come back.
+        api.call("PUT", f"/api/users/{user['id']}", {
+            "display_name": "UAT Trưởng phòng", "role": "department_manager",
+            "unit_ids": [UAT_UNIT, REAL_UNIT], "active": True, "force_password_change": False})
+        manager.login(MANAGER, MANAGER_PASSWORD)
+        stats = summary_on_screen()
+        case.checks.append((stats["total_documents"] > 0 and stats["total_endpoints"] == len(real_machines),
+                            f"with {REAL_UNIT} in scope: {stats['total_documents']} documents, "
+                            f"{stats['total_endpoints']} endpoints (want >0 and {len(real_machines)})"))
+        case.checks.append((status(doc_path) == 200, f"{REAL_UNIT} document by id -> {status(doc_path)} (want 200)"))
+    finally:
+        context.close()
+        cleanup = _remove_manager(api)
+    return cleanup
+
+
 CHECKS = {
     "child_document_type_actions": child_document_type_actions,
     "secrecy_label_reactivate": secrecy_label_reactivate,
     "confirm_before_deactivate": confirm_before_deactivate,
+    "manager_sees_own_units": manager_sees_own_units,
 }
 
 
