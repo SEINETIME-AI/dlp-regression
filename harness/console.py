@@ -148,9 +148,36 @@ def secrecy_label_reactivate(console: AdminConsole, api: Api, case: CaseResult) 
     return _guarded(api, case, SECRECY, [code], body)
 
 
+def confirm_before_deactivate(console: AdminConsole, api: Api, case: CaseResult) -> tuple[list[str], list[str]]:
+    """Tester note on TC-A-01 (bug 72): deactivating or deleting acted on the first click.
+    Now a dialog asks first; "Hủy" must send nothing and leave the item as it was."""
+    code, name = "uat-xac-nhan", "UAT Xác nhận"
+    tab = TAB[DOC_TYPES]
+    answers = ApiAnswers(console.page, f"/api/taxonomy/{DOC_TYPES}/")
+
+    def body():
+        console.create_document_type(code, name)
+        since = len(answers.answers)
+        console.taxonomy_action(tab, "Ngừng sử dụng", name, confirm=False)
+        stored = _stored(api, DOC_TYPES, code)
+        case.checks.append((answers.last("PATCH", since) is None and bool(stored and stored["active"]),
+                            "Hủy: no request sent, still in use"))
+        if not _step(case, answers, "confirmed deactivate", "PATCH", 200,
+                     lambda: console.taxonomy_action(tab, "Ngừng sử dụng", name)):
+            return
+        since = len(answers.answers)
+        console.taxonomy_action(tab, "Xóa", name, confirm=False)
+        case.checks.append((answers.last("DELETE", since) is None and _stored(api, DOC_TYPES, code) is not None,
+                            "Hủy on delete: no request sent, still there"))
+        _step(case, answers, "confirmed delete", "DELETE", 204, lambda: console.taxonomy_action(tab, "Xóa", name))
+
+    return _guarded(api, case, DOC_TYPES, [code], body)
+
+
 CHECKS = {
     "child_document_type_actions": child_document_type_actions,
     "secrecy_label_reactivate": secrecy_label_reactivate,
+    "confirm_before_deactivate": confirm_before_deactivate,
 }
 
 

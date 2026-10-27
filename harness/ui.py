@@ -80,10 +80,15 @@ class AdminConsole:
         dialog.get_by_role("button", name="Lưu", exact=True).click()
         expect(dialog).to_be_hidden()
 
-    def taxonomy_action(self, tab: str, action: str, name: str):
-        """`action` is the row button's label: "Ngừng sử dụng", "Sử dụng lại" or "Xóa"."""
+    def taxonomy_action(self, tab: str, action: str, name: str, confirm: bool = True):
+        """`action` is the row button's label: "Ngừng sử dụng", "Sử dụng lại" or "Xóa".
+        The first and last ask for confirmation; `confirm=False` answers "Hủy"."""
         self._taxonomy_tab(tab)
         self.page.get_by_role("button", name=f"{action} {name}", exact=True).click()
+        if action in ("Ngừng sử dụng", "Xóa"):
+            dialog = self.dialog()
+            dialog.get_by_role("button", name=action if confirm else "Hủy", exact=True).click()
+            expect(dialog).to_be_hidden()
         self.page.wait_for_timeout(SHORT)
 
     def rename_document_type(self, name: str, new_name: str):

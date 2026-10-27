@@ -7,3 +7,6 @@ cases:
   - name: secrecy-label-reactivate
     title: A deactivated label can be switched back on, and renaming it keeps it off
     check: secrecy_label_reactivate
+  - name: confirm-before-deactivate
+    title: Deactivate and delete ask first; cancelling changes nothing
+    check: confirm_before_deactivate
