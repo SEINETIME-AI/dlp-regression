@@ -16,6 +16,7 @@ from playwright.sync_api import sync_playwright
 
 from harness.api import Api
 from harness.config import Settings
+from harness.console import ConsoleSuite
 from harness.report import append_cleanup, write_log
 from harness.smb import remove_leftovers as remove_smb_leftovers
 from harness.suite import Suite
@@ -43,7 +44,8 @@ def main() -> int:
         print("removed:", removed or "nothing")
         return 0
 
-    folders = sorted(p for p in settings.suites_dir.iterdir() if (p / "setup.yaml").exists())
+    folders = sorted(p for p in settings.suites_dir.iterdir()
+                     if (p / "setup.yaml").exists() or (p / "console.yaml").exists())
     if args.suite:
         folders = [p for p in folders if p.name in args.suite]
         missing = set(args.suite) - {p.name for p in folders}
@@ -60,7 +62,8 @@ def main() -> int:
                 print(log.read_text(encoding="utf-8"), end="", flush=True)
 
             try:
-                suite = Suite(folder, settings, api, run_id, args.case)
+                suite = (ConsoleSuite(folder, settings, api, args.case) if (folder / "console.yaml").exists()
+                         else Suite(folder, settings, api, run_id, args.case))
             except ValueError as error:
                 parser.error(str(error))
             print(f"running {suite.name} ({len(suite.cases)} case(s)) …", flush=True)

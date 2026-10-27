@@ -49,6 +49,42 @@ class AdminConsole:
         dialog.get_by_role("button", name="Tạo", exact=True).click()
         expect(dialog).to_be_hidden()
 
+    def open_document_types(self):
+        """The document type tree with every branch open, so child rows are on screen."""
+        self.open("/taxonomy")
+        self.page.get_by_role("tab", name="Loại tài liệu").click()
+        self.page.get_by_role("button", name="Mở rộng tất cả").click()
+
+    def create_child_document_type(self, parent_name: str, code: str, name: str):
+        self.open_document_types()
+        self.page.get_by_role("button", name=f"Thêm loại con {parent_name}", exact=True).click()
+        dialog = self.dialog()
+        dialog.get_by_label(re.compile("^Mã")).first.fill(code)
+        dialog.get_by_label(re.compile("^Tên hiển thị")).first.fill(name)
+        dialog.get_by_role("button", name="Tạo", exact=True).click()
+        expect(dialog).to_be_hidden()
+
+    def rename_document_type(self, name: str, new_name: str):
+        self.open_document_types()
+        self.page.get_by_role("button", name=f"Sửa {name}", exact=True).click()
+        dialog = self.dialog()
+        dialog.get_by_label(re.compile("^Tên hiển thị")).first.fill(new_name)
+        dialog.get_by_role("button", name="Lưu", exact=True).click()
+        expect(dialog).to_be_hidden()
+
+    def deactivate_document_type(self, name: str):
+        self.open_document_types()
+        self.page.get_by_role("button", name=f"Ngừng sử dụng {name}", exact=True).click()
+        self.page.wait_for_timeout(SHORT)
+
+    def delete_document_type(self, name: str):
+        self.open_document_types()
+        self.page.get_by_role("button", name=f"Xóa {name}", exact=True).click()
+        self.page.wait_for_timeout(SHORT)
+
+    def document_type_row(self, name: str):
+        return self.page.get_by_role("row").filter(has_text=name)
+
     def create_secrecy_label(self, code: str, name: str, more_secret_than: str):
         self.open("/taxonomy")
         self.page.get_by_role("tab", name="Mức bảo mật").click()

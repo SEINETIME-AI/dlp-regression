@@ -1,0 +1,6 @@
+# Admin actions checked in the console alone (no agent). Each case runs one check
+# from harness/console.py and removes what it created.
+cases:
+  - name: child-document-type-actions
+    title: A child document type whose code contains "/" can be edited, deactivated and deleted
+    check: child_document_type_actions
