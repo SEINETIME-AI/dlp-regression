@@ -13,3 +13,6 @@ cases:
   - name: manager-sees-own-units
     title: A department manager sees the dashboard, documents and endpoints of their own units only
     check: manager_sees_own_units
+  - name: label-used-by-policy
+    title: A label a policy uses cannot be switched off; once free it is switched off, no policy can pick it, and it is deleted
+    check: label_used_by_policy

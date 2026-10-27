@@ -65,10 +65,17 @@ class Api:
         return self.call("DELETE", f"/api/documents?{query}")["deleted"]
 
     def delete_document_type(self, code: str):
-        self.call("DELETE", f"/api/document-types/{urllib.parse.quote(code)}")
+        self._retire("document-types", code, self.document_type(code))
 
     def delete_secrecy_label(self, code: str):
-        self.call("DELETE", f"/api/taxonomy/secrecy-labels/{urllib.parse.quote(code)}")
+        self._retire("secrecy-labels", code, self.secrecy_label(code))
+
+    def _retire(self, kind: str, code: str, item: dict | None):
+        """Only a label no longer in use can be deleted, so switch it off first."""
+        path = f"/api/taxonomy/{kind}/{urllib.parse.quote(code, safe='')}"
+        if item and item.get("active"):
+            self.call("PATCH", path + "/deactivate")
+        self.call("DELETE", path)
 
     def delete_uat_objects(self, prefix: str) -> list[str]:
         """Removes only data sources and policies the UAT created (name starts with prefix)."""

@@ -263,11 +263,101 @@ def manager_sees_own_units(console: AdminConsole, api: Api, case: CaseResult) ->
     return cleanup
 
 
+POLICY_KEEPING_LABELS = "UAT Policy giữ nhãn"
+
+
+def _remove_policy(api: Api, name: str) -> list[str]:
+    removed = []
+    for policy in api.items("/api/policies"):
+        if policy["name"] == name:
+            if policy.get("is_active"):
+                api.call("PATCH", f"/api/policies/{policy['id']}/deactivate")
+            api.call("DELETE", f"/api/policies/{policy['id']}")
+            removed.append(f"policy {name}")
+    return removed
+
+
+def _policy_using(domain: str | None, level: str | None) -> dict:
+    """An inactive policy (the agent never gets it) whose keyword rules assign `domain` and `level`."""
+    matchers = [{"kind": "keyword", "value": "uat-giu-nhan"}]
+    return {
+        "name": POLICY_KEEPING_LABELS, "department": REAL_UNIT, "is_active": False,
+        "keyword_domain_rules": [{"id": "uat-giu-loai", "domain": domain, "matchers": matchers}] if domain else [],
+        "keyword_secrecy_rules": [{"id": "uat-giu-muc", "level": level, "matchers": matchers}] if level else [],
+    }
+
+
+def label_used_by_policy(console: AdminConsole, api: Api, case: CaseResult) -> tuple[list[str], list[str]]:
+    """Product rule (2026-10-27, bug 77): a document type or secrecy label that a policy uses
+    cannot be switched off, and the console names the policy. Once no policy uses it, it can be
+    switched off, no policy can pick it any more, and it can be deleted."""
+    type_code, type_name = "uat-giu-loai", "UAT Loại trong policy"
+    label_code, label_name = "uat_giu_muc", "UAT Mức trong policy"
+    labels = [(DOC_TYPES, type_code, type_name), (SECRECY, label_code, label_name)]
+    answers = {kind: ApiAnswers(console.page, f"/api/taxonomy/{kind}/") for kind in (DOC_TYPES, SECRECY)}
+
+    def cleanup() -> tuple[list[str], list[str]]:
+        try:
+            removed = _remove_policy(api, POLICY_KEEPING_LABELS)
+        except ApiError as error:
+            return [], [f"policy left: {error}"]
+        for kind, code, _ in labels:
+            kind_removed, kind_problems = _remove_taxonomy(api, kind, [code])
+            removed += kind_removed
+            if kind_problems:
+                return removed, kind_problems
+        return removed, []
+
+    def rejected(body: dict) -> int:
+        try:
+            api.call("POST", "/api/policies", body)
+            _remove_policy(api, POLICY_KEEPING_LABELS)
+            return 201
+        except ApiError as error:
+            return error.status
+
+    _, leftovers = cleanup()
+    if leftovers:
+        case.checks.append((False, "an earlier run's items could not be removed: " + "; ".join(leftovers)))
+        return [], leftovers
+    try:
+        console.create_document_type(type_code, type_name)
+        console.create_secrecy_label(label_code, label_name, more_secret_than="public")
+        api.call("POST", "/api/policies", _policy_using(type_code, label_code))
+
+        for kind, code, name in labels:
+            if not _step(case, answers[kind], f"switch off {name} while the policy uses it", "PATCH", 409,
+                         lambda: console.taxonomy_action(TAB[kind], "Ngừng sử dụng", name)):
+                return cleanup()
+            shown = console.page.get_by_role("alert").filter(has_text=POLICY_KEEPING_LABELS).count() == 1
+            stored = _stored(api, kind, code)
+            case.checks.append((shown and bool(stored and stored["active"]),
+                                f"{name}: console names \"{POLICY_KEEPING_LABELS}\" ({shown}), still in use "
+                                f"({stored['active'] if stored else '-'})"))
+
+        _remove_policy(api, POLICY_KEEPING_LABELS)
+        for kind, code, name in labels:
+            if not _step(case, answers[kind], f"switch off {name} once no policy uses it", "PATCH", 200,
+                         lambda: console.taxonomy_action(TAB[kind], "Ngừng sử dụng", name)):
+                return cleanup()
+        status = rejected(_policy_using(type_code, None))
+        case.checks.append((status == 400, f"a policy picking the switched-off type -> {status} (want 400)"))
+        status = rejected(_policy_using(None, label_code))
+        case.checks.append((status == 400, f"a policy picking the switched-off label -> {status} (want 400)"))
+        for kind, code, name in labels:
+            _step(case, answers[kind], f"delete {name}", "DELETE", 204,
+                  lambda: console.taxonomy_action(TAB[kind], "Xóa", name))
+    finally:
+        result = cleanup()
+    return result
+
+
 CHECKS = {
     "child_document_type_actions": child_document_type_actions,
     "secrecy_label_reactivate": secrecy_label_reactivate,
     "confirm_before_deactivate": confirm_before_deactivate,
     "manager_sees_own_units": manager_sees_own_units,
+    "label_used_by_policy": label_used_by_policy,
 }
 
 
