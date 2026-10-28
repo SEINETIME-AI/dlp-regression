@@ -6,7 +6,8 @@ title: Classification — every technique on, one shared rule set
 # fails that case instead of hiding. Triggers avoid the department's real policy:
 # hóa đơn / thuế / phí / số tiền, "quý 1"/"quý 2", and long digit runs.
 # Cases are grouped by what they cover: keyword/, format/, dictionary/, hybrid/,
-# semantic/. Most cases cite the customer test (TC-…) they automate.
+# semantic/, archive/ (zip, 7z, tar.gz, nested; read inside by default). Most cases cite the
+# customer test (TC-…) they automate.
 
 # Created in the console for the run and deleted after it.
 document_types:
@@ -29,6 +30,7 @@ document_types:
   - {code: uat-nong-san, name: UAT Nông sản}
   - {code: uat-kiem-ke, name: UAT Kiểm kê}
   - {code: uat-dau-moc, name: UAT Dấu mộc}
+  - {code: uat-o-so, name: UAT Ô số}
 
 # A secrecy label the admin adds above secret, created in the console for the run
 # and deleted after it (the purge takes the documents and label history using it).
@@ -71,6 +73,10 @@ policies:
       - name: UAT mã nhân viên
         document_type: uat-ma-nv
         regex: '\bNV-\d{5}\b'
+      # A code typed into a number cell that pads to 8 digits (881234 shows as 00881234).
+      - name: UAT mã kho trong ô số
+        document_type: uat-o-so
+        regex: '\b0088\d{4}\b'
 
   # Customer test TC-C-05. Same two terms at 0.4 each, so a file with both
   # scores 0.8: the first rule's own threshold 0.8 is reached, the second

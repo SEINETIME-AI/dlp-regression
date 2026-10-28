@@ -1,0 +1,6 @@
+title: A code in an .xlsx number cell is read the way Excel shows it, zero-padded
+
+expected:
+  so-trong-o.xlsx:
+    secrecy: unlabelled
+    domains: [uat-o-so]

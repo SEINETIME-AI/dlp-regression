@@ -1,0 +1,10 @@
+title: An archive gets its most secret file's label and every document type inside; a plain one stays unlabelled
+
+# The data source lists .pdf/.docx/.xlsx (+ .png .pptx .txt): archives are read inside by default.
+expected:
+  ho-so.zip:
+    secrecy: secret
+    domains: [uat-finance, uat-hr]
+  thong-bao.zip:
+    secrecy: unlabelled
+    domains: []

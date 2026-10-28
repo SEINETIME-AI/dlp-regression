@@ -1,0 +1,9 @@
+title: An archive nested three levels deep is not read and is left for review
+
+# ba-lop.zip › goi.zip › phu-luc.zip › bang-luong.txt: one level more than the agent opens.
+# The agent reports nested_too_deep; until the backend turns that into "Pending review",
+# the document shows as unlabelled.
+expected:
+  ba-lop.zip:
+    secrecy: unlabelled
+    domains: []

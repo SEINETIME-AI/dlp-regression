@@ -3,6 +3,7 @@ import zipfile
 from pathlib import Path
 
 from pypdf import PdfReader
+from pypdf.errors import PdfReadError
 
 _PROPERTY = re.compile(r'<property[^>]*name="(nextdlp_[A-Za-z]+)"[^>]*>\s*<vt:lpwstr>(.*?)</vt:lpwstr>', re.S | re.I)
 
@@ -27,7 +28,10 @@ def _label(values: dict) -> dict | None:
 def embedded_label(path: Path) -> dict | None:
     """The NextDLP label the agent wrote into an OOXML or PDF file, or None."""
     if path.suffix.lower() == ".pdf":
-        info = PdfReader(path).metadata or {}
+        try:
+            info = PdfReader(path).metadata or {}
+        except PdfReadError:  # another format renamed .pdf: it cannot carry a label
+            return None
         return _label({key.lstrip("/"): str(value) for key, value in info.items()})
     try:
         with zipfile.ZipFile(path) as archive:

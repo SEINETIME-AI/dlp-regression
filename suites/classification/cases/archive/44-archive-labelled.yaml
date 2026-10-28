@@ -1,0 +1,6 @@
+title: A document labelled earlier keeps its label once zipped, though its text matches no rule
+
+expected:
+  quyet-dinh.zip:
+    secrecy: secret
+    domains: []

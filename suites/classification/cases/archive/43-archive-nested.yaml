@@ -1,0 +1,10 @@
+title: An archive inside an archive is read; a .7z renamed .pdf is still read as an archive
+
+expected:
+  long-nhau.zip:
+    secrecy: secret
+    domains: [uat-hr]
+  doi-ten.pdf:
+    secrecy: confidential
+    domains: [uat-finance]
+    result_from: backend   # an archive: no label is written into it

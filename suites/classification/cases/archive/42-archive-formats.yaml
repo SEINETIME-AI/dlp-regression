@@ -1,0 +1,12 @@
+title: The same files in .7z and .tar.gz read alike; a lone .csv.gz is read as the csv inside
+
+expected:
+  ho-so.7z:
+    secrecy: secret
+    domains: [uat-finance, uat-hr]
+  ho-so.tar.gz:
+    secrecy: secret
+    domains: [uat-finance, uat-hr]
+  de-nghi.csv.gz:
+    secrecy: unlabelled
+    domains: [uat-finance]
