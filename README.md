@@ -316,6 +316,11 @@ timing: {"setup_ms": {"config": 4, "rules_compile": 1, "ocr_init": 197, "yolo_in
 
 Lines above it give the result (`secrecy`, rules that fired, `stamp`, `signature`).
 
+For graphs of RAM, CPU and disk reads while a file is classified, or while the
+running service works through the files copied into its folder, use
+`agent/scripts/monitor/monitor.ps1` in dlp-win (`-Run` for one file, `-Attach`
+for the service); its `README.md` has the commands.
+
 ### 3. Compare two builds
 
 Time the same files on the build before the change and on the build after it, on
