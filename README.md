@@ -250,22 +250,88 @@ tools/make_xlsx.py         minimal .xlsx (one sheet, shared strings)
 tools/make_media.py        PNG images, text / scanned PDFs, a synthetic red stamp on a scanned page
 tools/make_broken.py       password-protected and corrupt .docx
 tools/make_large.py        large plain-text files (tens of MB), written at run time
-tools/make_corpus.py       performance corpus in data/perf-corpus/ (git-ignored)
+tools/make_corpus.py       performance corpus in data/perf-corpus/ (git-ignored), see "Performance corpus"
 ```
 
 ## Performance corpus
 
-`tools/make_corpus.py` writes files for timing the agent on large documents into
-`data/perf-corpus/`, which git ignores: text, text-layer PDF, scanned PDF, DOCX and
-XLSX at 1 MB, 20 MB, 200 MB and 2 GB, a 25 MB file with matches across the agent's
-5 MiB chunk seams (`boundary-25mb.expect.txt`), and a sparse 50 GB file. The
-content is synthetic and the same seed always gives the same files, so each
-machine can write its own copy. Time one file with an agent build:
+The corpus is for timing the agent on large documents, one file at a time, before
+and after a change. It is not a suite: nothing is checked automatically, you read
+the numbers.
+
+### 1. Write the files
 
 ```powershell
-python tools/make_corpus.py --sizes 1M,20M,200M      # about 1.2 GB; drop --sizes for 2 GB files too
-nextdlp.exe classify data\perf-corpus\text-20mb.txt --timing --repeat 5
+cd C:\dev\dlp-regression
+python tools/make_corpus.py --sizes 1M,20M,200M      # about 1.5 GB; without --sizes it adds 2 GB files (about 13 GB)
 ```
+
+The files go to `data/perf-corpus/`, which git ignores. The content is synthetic and
+the same seed always gives the same files, so every machine writes its own copy and
+the numbers stay comparable. Existing files are kept; delete one to rewrite it.
+
+| Files | What they exercise | Expected result with the default policy |
+|---|---|---|
+| `text-1mb.txt` | normal path: whole text in memory, rules, embedding | `secret` (rules `vn-cccd`, `vn-state-secret-ho-so-mat`: the filler has CCCD numbers and "hồ sơ mật") |
+| `text-20mb.txt`, `text-200mb.txt` | two-pointer path (over 20 MiB): read in 5 MiB chunks from both ends | same; no domain (embedding refuses texts over 128 chunks) |
+| `docx-*`, `xlsx-*` | OOXML: no chunked reader, the whole document is read at any size | `secret`, same rules |
+| `pdf-text-*` | PDF with a text layer; pages are also rendered to look for stamps | slow: the 1 MB file (234 pages) takes minutes |
+| `pdf-scan-*` | PDF with images only: every page is OCR'd | `confidential` (`vn-cccd` from the OCR text); the short OCR text also gets embedding domains |
+| `pdf-stamp-*` | scanned contract pages, every other one with a red round stamp at 0°, 12° or -20° | `stamp: yes`, secrecy `secret` (the policy's stamp rule) |
+| `boundary-25mb.txt` | matches placed across the 5 MiB chunk seams; `boundary-25mb.expect.txt` lists each one | every probe must be found; the filler also has CCCD numbers, so check it with a policy that only has the probe as a rule |
+| `huge-50gb-sparse.txt` | the service's size limit (`max_file_mb`): not for `classify`, which would read 50 GB of zeros | the service skips it |
+
+### 2. Time a file
+
+Run the agent from `C:\dev\dlp-win\agent`, so a dev build reads
+`configs\agent.conf` and `configs\default_policy.yaml` (8 secrecy rules, 2 keyword
+and 2 dictionary domain rules, 4 embedding descriptions, the stamp rule). An
+installed agent's `nextdlp.exe` needs an elevated prompt to read its own
+`agent.conf`.
+
+```powershell
+cd C:\dev\dlp-win\agent
+build\x64-release\Release\nextdlp.exe classify C:\dev\dlp-regression\data\perf-corpus\text-20mb.txt --timing --repeat 5
+```
+
+Use a Release build: a Debug build is many times slower and its numbers say little.
+`--repeat 5` loads the models once and classifies the file five times; the first
+run is cold (the file is not in the Windows cache yet), so compare the median of
+the other four. Use `--repeat 1` for the 200 MB files and every PDF, which take
+minutes per run.
+
+The last line is the timing:
+
+```
+timing: {"setup_ms": {"config": 4, "rules_compile": 1, "ocr_init": 197, "yolo_init": 80, "embedding_init": 2134},
+         "runs": [{"extract_ms": 2.7, "classify_ms": 406.9, "embed_ms": 402.1, "embed_calls": 1,
+                   "total_ms": 410.3, "text_chars": 1048672, "two_pointer": false, "used_ocr": false}, ...]}
+```
+
+- `setup_ms`: loading the policy and the models, once per process.
+- `extract_ms`: reading the text, OCR included. On the two-pointer path reading is
+  inside `classify_ms` and `extract_ms` / `text_chars` stay 0.
+- `classify_ms`: rules, with `embed_ms` (the embedding model) inside it.
+- `total_ms`: one classification of the file.
+
+Lines above it give the result (`secrecy`, rules that fired, `stamp`, `signature`).
+
+### 3. Compare two builds
+
+Time the same files on the build before the change and on the build after it, on
+the same machine, with the same apps open (Docker, a browser and an IDE all take
+CPU), and on mains power. Save each `timing:` line, e.g.
+`... --timing --repeat 5 > before-text-20mb.txt`. A change counts when the median
+moves well beyond the spread between the warm runs.
+
+Numbers seen on the developer laptop (Ryzen 5 5600H, Release, main 56d4c3b):
+
+| File | Median | Where the time goes |
+|---|---|---|
+| `text-1mb.txt` | 0.4 s | embedding 0.4 s |
+| `text-20mb.txt` | 4.2 s | embedding 4.15 s: each half's first 5 MiB is tokenized, then refused for being over 128 chunks |
+| `pdf-stamp-1mb.pdf` (5 pages) | 10.6 s with setup | render, stamp detection and OCR per page |
+| `pdf-text-1mb.pdf` (234 pages) | over 20 s | page rendering for stamps |
 
 ## Rules for test data
 

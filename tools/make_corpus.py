@@ -1,7 +1,7 @@
 """Generates the large-file performance corpus in data/perf-corpus/ (git-ignored).
 
-Text, PDF (text layer), PDF (scanned images), DOCX and XLSX files at the
-requested sizes, a 25 MB file whose matches sit across the agent's 5 MiB
+Text, PDF (text layer), PDF (scanned images), PDF (scanned contract pages, every
+other one with a red round stamp), DOCX and XLSX files at the requested sizes, a 25 MB file whose matches sit across the agent's 5 MiB
 two-pointer chunk seams (boundary-25mb.expect.txt lists them), and a sparse
 50 GB file. Everything is streamed, so a 2 GB file needs a few MB of RAM.
 Same seed, same files. Existing files are kept, so a stopped run can be resumed.
@@ -319,12 +319,47 @@ def write_pdf_scan(path, size, rng):
     pdf.close()
 
 
+def stamped_pages(rng):
+    """Scanned A4 contract pages (JPEG, colour): every other one carries a red round stamp,
+    each at its own angle, so the stamp detector runs on pages with and without one."""
+    from make_media import round_stamp, scan_page
+    stamp = round_stamp(360, "CÔNG TY TNHH THỬ NGHIỆM UAT * HÀ NỘI * ", "MẬT")
+    pages = []
+    for i, rotate in enumerate((0, None, 12, None, -20, None)):
+        lines = [sentence(rng, WORDS_VI)[:70] for _ in range(14)]
+        page = scan_page(f"HỢP ĐỒNG SỐ {i + 1:02d}/UAT", lines,
+                         stamp if rotate is not None else None, rotate=rotate or 0)
+        buf = io.BytesIO()
+        page.save(buf, "JPEG", quality=75)
+        pages.append((buf.getvalue(), page.size, rotate is not None))
+    return pages
+
+
+def write_pdf_stamp(path, size, rng):
+    pages = stamped_pages(rng)
+    pdf = PdfWriter(path)
+    stamped = 0
+    while pdf.f.tell() < size:
+        jpeg, (width, height), has_stamp = pages[len(pdf.page_ids) % len(pages)]
+        stamped += has_stamp
+        image_id = pdf.new_id()
+        pdf.obj(image_id, f"<< /Type /XObject /Subtype /Image /Width {width} /Height {height} /ColorSpace /DeviceRGB "
+                          f"/BitsPerComponent 8 /Filter /DCTDecode /Length {len(jpeg)} >>", jpeg)
+        pdf.add_page(b"q 595 0 0 842 0 0 cm /Im0 Do Q", f"<< /XObject << /Im0 {image_id} 0 R >> >>")
+        if len(pdf.page_ids) % 100 == 0:
+            progress(path, pdf.f.tell(), size)
+    pdf.close()
+    name = os.path.basename(path).removesuffix(".partial")
+    print(f"\r  {name}: {len(pdf.page_ids)} pages, {stamped} with a stamp" + " " * 20)
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 WRITERS = {
     "text": ("text-{}.txt", write_text),
     "pdf": ("pdf-text-{}.pdf", write_pdf_text),
     "pdf-scan": ("pdf-scan-{}.pdf", write_pdf_scan),
+    "pdf-stamp": ("pdf-stamp-{}.pdf", write_pdf_stamp),
     "docx": ("docx-{}.docx", write_docx),
     "xlsx": ("xlsx-{}.xlsx", write_xlsx),
 }
