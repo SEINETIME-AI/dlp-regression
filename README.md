@@ -250,6 +250,21 @@ tools/make_xlsx.py         minimal .xlsx (one sheet, shared strings)
 tools/make_media.py        PNG images, text / scanned PDFs, a synthetic red stamp on a scanned page
 tools/make_broken.py       password-protected and corrupt .docx
 tools/make_large.py        large plain-text files (tens of MB), written at run time
+tools/make_corpus.py       performance corpus in data/perf-corpus/ (git-ignored)
+```
+
+## Performance corpus
+
+`tools/make_corpus.py` writes files for timing the agent on large documents into
+`data/perf-corpus/`, which git ignores: text, text-layer PDF, scanned PDF, DOCX and
+XLSX at 1 MB, 20 MB, 200 MB and 2 GB, a 25 MB file with matches across the agent's
+5 MiB chunk seams (`boundary-25mb.expect.txt`), and a sparse 50 GB file. The
+content is synthetic and the same seed always gives the same files, so each
+machine can write its own copy. Time one file with an agent build:
+
+```powershell
+python tools/make_corpus.py --sizes 1M,20M,200M      # about 1.2 GB; drop --sizes for 2 GB files too
+nextdlp.exe classify data\perf-corpus\text-20mb.txt --timing --repeat 5
 ```
 
 ## Rules for test data

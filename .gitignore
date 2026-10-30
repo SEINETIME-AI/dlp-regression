@@ -10,3 +10,5 @@ playwright-report/
 # Large files written at run time by tools/make_data.py (TC-H-03/H-04)
 data/**/nhat-ky-*mb.txt
 data/**/*-22mb.pdf
+# Performance corpus written by tools/make_corpus.py (about 1-11 GB plus a sparse 50 GB file)
+data/perf-corpus/
