@@ -278,6 +278,7 @@ the numbers stay comparable. Existing files are kept; delete one to rewrite it.
 | `pdf-text-*` | PDF with a text layer; pages are also rendered to look for stamps | slow: the 1 MB file (234 pages) takes minutes |
 | `pdf-scan-*` | PDF with images only: every page is OCR'd | `confidential` (`vn-cccd` from the OCR text); the short OCR text also gets embedding domains |
 | `pdf-stamp-*` | scanned contract pages, every other one with a red round stamp at 0°, 12° or -20° | `stamp: yes`, secrecy `secret` (the policy's stamp rule) |
+| `embed-finance-q2-20kb.docx`, `-200kb`, `-1mb` | a Quý II/2026 financial report with 20 KB, 200 KB and 1 MB of text, sized around the embedding limit (128 chunks, about 250 KB of text): embedding runs fully on the first two and is refused on the third | default policy: the finance embedding description fires (with the default threshold the hr, contract and tendering ones fire too); a policy with a hybrid rule "finance report AND `Quý II`" fires on the first two |
 | `boundary-25mb.txt` | matches placed across the 5 MiB chunk seams; `boundary-25mb.expect.txt` lists each one | every probe must be found; the filler also has CCCD numbers, so check it with a policy that only has the probe as a rule |
 | `huge-50gb-sparse.txt` | the service's size limit (`max_file_mb`): not for `classify`, which would read 50 GB of zeros | the service skips it |
 
@@ -335,6 +336,9 @@ Numbers seen on the developer laptop (Ryzen 5 5600H, Release, main 56d4c3b):
 |---|---|---|
 | `text-1mb.txt` | 0.4 s | embedding 0.4 s |
 | `text-20mb.txt` | 4.2 s | embedding 4.15 s: each half's first 5 MiB is tokenized, then refused for being over 128 chunks |
+| `embed-finance-q2-20kb.docx` | 3.3 s | embedding, all of it |
+| `embed-finance-q2-200kb.docx` | 34 s | embedding, all of it: the slowest case is a document just under the limit |
+| `embed-finance-q2-1mb.docx` | 0.46 s | embedding refused after tokenizing |
 | `pdf-stamp-1mb.pdf` (5 pages) | 10.6 s with setup | render, stamp detection and OCR per page |
 | `pdf-text-1mb.pdf` (234 pages) | over 20 s | page rendering for stamps |
 

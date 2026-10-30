@@ -1,7 +1,8 @@
 """Generates the large-file performance corpus in data/perf-corpus/ (git-ignored).
 
 Text, PDF (text layer), PDF (scanned images), PDF (scanned contract pages, every
-other one with a red round stamp), DOCX and XLSX files at the requested sizes, a 25 MB file whose matches sit across the agent's 5 MiB
+other one with a red round stamp), DOCX and XLSX files at the requested sizes,
+Quý II financial reports with 20 KB, 200 KB and 1 MB of text (around the embedding limit), a 25 MB file whose matches sit across the agent's 5 MiB
 two-pointer chunk seams (boundary-25mb.expect.txt lists them), and a sparse
 50 GB file. Everything is streamed, so a 2 GB file needs a few MB of RAM.
 Same seed, same files. Existing files are kept, so a stopped run can be resumed.
@@ -167,6 +168,45 @@ def write_docx(path, size, rng):
                 doc.write(paragraphs.encode("utf-8"))
                 progress(path, raw.tell(), size)
             doc.write(b"</w:body></w:document>")
+    raw.close()
+
+
+# Quarterly financial-report prose: close to the finance descriptions the embedding rules
+# use, and "Quý II" for the hybrid rules that also need the quarter.
+FINANCE_TEMPLATES = (
+    "Báo cáo kết quả hoạt động kinh doanh Quý II năm 2026: doanh thu thuần đạt {a} tỷ đồng, "
+    "tăng {p}% so với cùng kỳ; giá vốn hàng bán {b} tỷ đồng, lợi nhuận gộp {c} tỷ đồng.",
+    "Lợi nhuận sau thuế thu nhập doanh nghiệp trong kỳ đạt {c} tỷ đồng; chi phí bán hàng {d} tỷ đồng "
+    "và chi phí quản lý doanh nghiệp {e} tỷ đồng được kiểm soát theo kế hoạch.",
+    "Bảng cân đối kế toán tại ngày 30/06/2026: tổng tài sản {a} tỷ đồng, trong đó tiền và các khoản "
+    "tương đương tiền {d} tỷ đồng, hàng tồn kho {e} tỷ đồng, nợ phải trả {b} tỷ đồng.",
+    "Báo cáo lưu chuyển tiền tệ Quý II: lưu chuyển tiền thuần từ hoạt động kinh doanh {c} tỷ đồng, "
+    "từ hoạt động đầu tư âm {d} tỷ đồng, từ hoạt động tài chính {e} tỷ đồng.",
+    "Thuyết minh báo cáo tài chính mục {n}: các khoản phải thu ngắn hạn {d} tỷ đồng, chi phí tài chính "
+    "{e} tỷ đồng, vốn chủ sở hữu cuối kỳ {a} tỷ đồng theo chuẩn mực kế toán Việt Nam.",
+)
+
+
+def write_finance_docx(path, text_bytes, rng):
+    """A Quý II/2026 financial report of about `text_bytes` of text (not file size): the
+    embedding limit counts tokens of text, so these files are sized around it."""
+    raw = open(path, "wb")
+    with zipfile.ZipFile(raw, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("[Content_Types].xml", CONTENT_TYPES_DOCX)
+        z.writestr("_rels/.rels", RELS_DOCX)
+        paragraphs, written, n = [], 0, 0
+        while written < text_bytes:
+            n += 1
+            line = rng.choice(FINANCE_TEMPLATES).format(
+                a=rng.randint(500, 9000), b=rng.randint(200, 5000), c=rng.randint(20, 900),
+                d=rng.randint(10, 600), e=rng.randint(5, 300), p=rng.randint(2, 35), n=n)
+            paragraphs.append(f"<w:p><w:r><w:t>{xml_escape(line)}</w:t></w:r></w:p>")
+            written += len(line.encode("utf-8"))
+        z.writestr("word/document.xml",
+                   '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+                   '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'
+                   '<w:p><w:r><w:t>BÁO CÁO TÀI CHÍNH QUÝ II NĂM 2026</w:t></w:r></w:p>'
+                   + "".join(paragraphs) + "</w:body></w:document>")
     raw.close()
 
 
@@ -372,6 +412,7 @@ def main():
     parser.add_argument("--types", default=",".join(WRITERS), help="comma list of " + ", ".join(WRITERS))
     parser.add_argument("--no-boundary", action="store_true", help="skip the 25 MB chunk-seam file")
     parser.add_argument("--no-huge", action="store_true", help="skip the sparse 50 GB file")
+    parser.add_argument("--no-embed", action="store_true", help="skip the Quý II financial reports")
     parser.add_argument("--huge-size", default="50G")
     parser.add_argument("--seed", type=int, default=20261030, help="same seed, same files")
     args = parser.parse_args()
@@ -382,6 +423,10 @@ def main():
         for kind in args.types.split(","):
             name, writer = WRITERS[kind]
             jobs.append((name.format(size_label(size)), writer, size))
+    if not args.no_embed:
+        # Text sizes around the embedding limit (128 chunks, roughly 250 KB of Vietnamese text).
+        for text_bytes in (20 * KIB, 200 * KIB, 1 * MIB):
+            jobs.append((f"embed-finance-q2-{size_label(text_bytes)}.docx", write_finance_docx, text_bytes))
     if not args.no_boundary:
         jobs.append(("boundary-25mb.txt", write_boundary, 25 * MIB))
     if not args.no_huge:
