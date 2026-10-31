@@ -132,6 +132,13 @@ class Case:
             message = f"{name}: {got[0]} {got[1]}"
             self.record(got == want, message if got == want else f"{message} (want {want[0]} {want[1]})",
                         expected.get("known_issue"))
+            # How much of the file the label rests on, as the backend keeps it (full | partial | metadata_only).
+            if "coverage" in expected:
+                coverage = labels[name].get("coverage") or (self.backend_result(self.root / name) or {}).get("coverage")
+                self.record(coverage == expected["coverage"],
+                            f"{name}: coverage {coverage}" + ("" if coverage == expected["coverage"]
+                                                              else f" (want {expected['coverage']})"),
+                            expected.get("known_issue"))
             # Unlabelled is written into no file: a stale or unknown NextDLP_Secrecy is removed (TC-E-07/E-08).
             path = self.root / name
             if want[0] == "unlabelled" and path.suffix.lower() in LABELED_SUFFIXES and path.exists():
@@ -354,7 +361,8 @@ class Suite:
         for document in self.run_documents():
             if document["file_path"].lower() == self.agent_path(path).lower() and document["status"] != "removed":
                 domains = [d for d in document.get("domain_label") or [] if d != "general"]
-                return {"secrecy": document["secrecy_label"], "domains": sorted(domains)}
+                return {"secrecy": document["secrecy_label"], "domains": sorted(domains),
+                        "coverage": document.get("coverage", "full")}
         return None
 
     def backend_document(self, path: Path) -> dict | None:

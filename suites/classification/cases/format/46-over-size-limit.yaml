@@ -1,0 +1,10 @@
+title: A text file over the agent's 250 MB limit is read at its ends, labelled and flagged "not analysed in full"
+
+# Agents before bug 92 skipped such a file with no event: the console never knew it.
+# Only its first and last 125 MB are read; "tuyệt mật" is on its first line.
+# Plain text has no embedded label: the result comes from the backend.
+expected:
+  nhat-ky-260mb.txt:
+    secrecy: secret
+    domains: []
+    coverage: partial

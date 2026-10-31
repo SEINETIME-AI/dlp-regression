@@ -162,6 +162,10 @@ FILES = {
         "Phụ lục: kế hoạch thu mua nông sản vụ đông (dữ liệu giả lập).", 22),
     "classification/34-large-text-22mb/nhat-ky-22mb.txt": lambda p: write_large_text(
         p, 22, "Ghi chú cuối: tài liệu tuyệt mật, không phát tán (dữ liệu giả lập).", None, "B"),
+    # Over the agent's 250 MB limit: only its ends are read, so the label rests on part of it.
+    "classification/46-over-size-limit/nhat-ky-260mb.txt": lambda p: write_large_text(
+        p, 260, "Ghi chú giữa tệp: không bao giờ được đọc (dữ liệu giả lập).", 130, "E",
+        first_line="Nhật ký tuyệt mật, không phát tán (dữ liệu giả lập)."),
     # TC-E-07: starts with a secrecy code no taxonomy has; no rule matches its text.
     "classification/38-unknown-label-is-unlabelled/nhan-la.docx": lambda p: write_docx(p, [
         "Thông báo lịch bảo trì hệ thống điều hòa tầng ba vào sáng thứ bảy (dữ liệu giả lập).",
