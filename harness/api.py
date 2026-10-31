@@ -1,6 +1,7 @@
 """Thin admin client for the NextDLP backend. Used for waiting, checking and
 cleanup; everything an admin would do is done through the UI instead."""
 import json
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -23,11 +24,17 @@ class Api:
         request.add_header("Content-Type", "application/json; charset=utf-8")
         if getattr(self, "token", None):
             request.add_header("Authorization", "Bearer " + self.token)
-        try:
-            with urllib.request.urlopen(request, timeout=30) as response:
-                text = response.read().decode("utf-8")
-        except urllib.error.HTTPError as error:
-            raise ApiError(method, path, error.code, error.read().decode("utf-8", "replace")) from None
+        for attempt in range(6):
+            try:
+                with urllib.request.urlopen(request, timeout=30) as response:
+                    text = response.read().decode("utf-8")
+                break
+            except urllib.error.HTTPError as error:
+                # Many cases polling at once can pass the backend's per-IP limit: wait it out.
+                if error.code == 429 and attempt < 5:
+                    time.sleep(float(error.headers.get("Retry-After") or 5))
+                    continue
+                raise ApiError(method, path, error.code, error.read().decode("utf-8", "replace")) from None
         return json.loads(text) if text else None
 
     def get(self, path: str, **query):
