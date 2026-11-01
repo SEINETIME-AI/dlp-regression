@@ -64,6 +64,9 @@ def wait_until(predicate, timeout_s: int, interval_s: float = 3.0, what: str = "
         time.sleep(interval_s)
 
 
+# The agent pushes events every few seconds; a minute covers a slow push of a large file.
+BACKEND_REPORT_TIMEOUT_S = 60
+
 ISO_UTC = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z")
 
 
@@ -124,6 +127,15 @@ class Case:
                 self.seen_at[name] = time.monotonic()
         return labels if all(labels.values()) else None
 
+    def backend_coverage(self, path: Path) -> str | None:
+        """The coverage the backend keeps. The agent labels the file before it sends the event
+        (next push, a few seconds later), so a label read from the file can come first."""
+        try:
+            return wait_until(lambda: (self.backend_result(path) or {}).get("coverage"),
+                              BACKEND_REPORT_TIMEOUT_S, what=f"the backend to record {path.name}")
+        except TimeoutError:
+            return None
+
     def verify(self, labels: dict):
         self.observed = labels
         for name, expected in self.expected.items():
@@ -134,7 +146,7 @@ class Case:
                         expected.get("known_issue"))
             # How much of the file the label rests on, as the backend keeps it (full | partial | metadata_only).
             if "coverage" in expected:
-                coverage = labels[name].get("coverage") or (self.backend_result(self.root / name) or {}).get("coverage")
+                coverage = labels[name].get("coverage") or self.backend_coverage(self.root / name)
                 self.record(coverage == expected["coverage"],
                             f"{name}: coverage {coverage}" + ("" if coverage == expected["coverage"]
                                                               else f" (want {expected['coverage']})"),
