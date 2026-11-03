@@ -1,0 +1,4 @@
+title: Another company's faint seal on a page naming nobody does not fire, whether its ring is read or not
+expect_all:
+  secrecy: unlabelled
+  domains: []

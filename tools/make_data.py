@@ -16,9 +16,9 @@ from PIL import Image, ImageFont
 from make_docx import write_docx
 from make_pptx import write_pptx
 from make_xlsx import write_xlsx
-from make_large import write_large_pdf, write_large_text
+from make_large import write_large_pdf, write_large_scan_pdf, write_large_text
 from make_broken import write_corrupt_docx, write_password_docx
-from make_media import (BOLD_FONT, STAMP_RED, faded, page_png_bytes, round_stamp, scan_page, square_stamp,
+from make_media import (BOLD_FONT, FONT, STAMP_RED, faded, page_png_bytes, round_stamp, scan_page, square_stamp,
                         text_image, write_page_pdf, write_page_png, write_png, write_scanned_pdf,
                         write_stamped_scan, write_text_pdf)
 
@@ -316,6 +316,90 @@ FILES.update({
         "Bổ sung sổ tay vận hành ca đêm khi mất kết nối (dữ liệu giả lập).",
     ]),
 })
+
+# ── stamp-issuer suite ───────────────────────────────────────────────────────
+# The stamp rule names one company, "Thử Nghiệm UAT", and fires only on its stamp. The
+# agent reads the ring of each stamp; when that reads as noise (a faint seal printed over
+# text) it looks for the company in the text around the stamp (the signature block)
+# instead, never in the rest of the page. Every page here names the company in its body,
+# in the signature block, or not at all, on purpose, so each case isolates one path.
+_ISSUER = "Công ty TNHH Thử Nghiệm UAT"
+_NAMES_ISSUER = [f"Bên giao: {_ISSUER}, số 1 phố Thử Nghiệm, Hà Nội.", *_LINES]
+_NAMES_NOBODY = ["Bên giao: đại diện kho vật tư số 2.", *_LINES]
+
+
+def _signed_by(name):
+    # The signature block names the signer's company under the signature, next to the stamp.
+    def extra(draw, page):
+        _signature(draw, page)
+        draw.text((900, 1980), name, fill="black", font=ImageFont.truetype(FONT, 30))
+    return extra
+
+
+def _other_company(diameter=360):
+    return round_stamp(diameter, "CÔNG TY CỔ PHẦN VẬN TẢI ABC * TP HỒ CHÍ MINH * ", "MẬT")
+
+
+def _red_header(draw, page):
+    # A digital-signature block printed in red, as e-signing services add to a PDF's first page.
+    font = ImageFont.truetype(FONT, 26)
+    for i, line in enumerate(["Cơ quan phát hành: CÔNG TY TNHH THỬ NGHIỆM UAT", "Người ký: PHÒNG HÀNH CHÍNH",
+                              "Thời gian ký: 03.11.2026 12:07:13 +07:00"]):
+        draw.text((900, 40 + i * 34), line, fill=STAMP_RED, font=font)
+
+
+# A seal printed with half the ink, placed so the signature runs through its ring. The
+# model still scores it about 0.91 here (over the "ĐẠI DIỆN BÊN GIAO" text it drops to 0.5).
+_OVER_SIGNATURE = (1250, 1580)
+
+
+def _faint(stamp, opacity=0.5):
+    return faded(stamp, opacity)
+
+
+STAMP_ISSUER_SAMPLES = [
+    # The company's own stamp, read on the ring.
+    ("named-stamp", "dau-cong-ty.pdf", lambda: scan_page("BIÊN BẢN BÀN GIAO SỐ 21", _NAMES_NOBODY, _round())),
+    ("named-stamp", "dau-cong-ty-nho.pdf", lambda: scan_page("BIÊN BẢN BÀN GIAO SỐ 22", _NAMES_NOBODY, _round(260))),
+    ("named-stamp", "dau-cong-ty.png", lambda: scan_page("BIÊN BẢN BÀN GIAO SỐ 23", _NAMES_NOBODY, _round())),
+    # Another company's stamp: legible, so the page is not searched even when it names the issuer.
+    ("other-company", "dau-cong-ty-khac.pdf",
+     lambda: scan_page("BIÊN BẢN BÀN GIAO SỐ 24", _NAMES_NOBODY, _other_company())),
+    ("other-company", "dau-khac-trang-nhac-ten.pdf",
+     lambda: scan_page("BIÊN BẢN BÀN GIAO SỐ 25", _NAMES_ISSUER, _other_company(), at=_OVER_SIGNATURE,
+                       extra=_signed_by(f"Bên nhận: {_ISSUER}"))),
+    # The company's faint seal with the signature through its ring, on a page naming the
+    # company: fires whether the ring is read or the page is.
+    ("faint-stamp-page-names-issuer", "dau-mo-de-chu.pdf",
+     lambda: scan_page("BIÊN BẢN BÀN GIAO SỐ 26", _NAMES_ISSUER, _faint(_round()), at=_OVER_SIGNATURE,
+                       extra=_signed_by(_ISSUER))),
+    # Another company's faint seal, the same way, on a page naming nobody: whether its ring
+    # is read (another company) or not (nobody on the page), there is no issuer.
+    ("faint-stamp-page-names-nobody", "dau-mo-khong-ten.pdf",
+     lambda: scan_page("BIÊN BẢN BÀN GIAO SỐ 27", _NAMES_NOBODY, _faint(_other_company()), at=_OVER_SIGNATURE,
+                       extra=_signature)),
+    # No stamp at all: the company's name in the text never fires a stamp rule.
+    ("no-stamp-page-names-issuer", "khong-dau-co-ten.pdf",
+     lambda: scan_page("BIÊN BẢN BÀN GIAO SỐ 28", _NAMES_ISSUER, extra=_signature)),
+    # A red e-signature block and the company's name, no stamp (the real-world decoy).
+    ("red-decoy-page-names-issuer", "chu-ky-so-do.pdf",
+     lambda: scan_page("BIÊN BẢN BÀN GIAO SỐ 29", _NAMES_ISSUER, extra=_red_header)),
+]
+
+for _case, _name, _page in STAMP_ISSUER_SAMPLES:
+    FILES[f"stamp-issuer/{_case}/{_name}"] = lambda p, page=_page: _write_sample(p, page())
+
+# Past the 20 MiB large-file threshold: the agent reads stamps there without OCR'ing the
+# document, so the stamp on the last page must still be read and matched.
+FILES["stamp-issuer/large-scan/ho-so-22mb.pdf"] = lambda p: write_large_scan_pdf(p, [
+    scan_page("HỒ SƠ BÀN GIAO TRANG 1", _NAMES_NOBODY),
+    scan_page("HỒ SƠ BÀN GIAO TRANG 2", _NAMES_NOBODY),
+    scan_page("HỒ SƠ BÀN GIAO TRANG CUỐI", _NAMES_ISSUER, _round(), extra=_signed_by(_ISSUER)),
+], 22)
+FILES["stamp-issuer/large-scan/ho-so-22mb-khac.pdf"] = lambda p: write_large_scan_pdf(p, [
+    scan_page("HỒ SƠ VẬN CHUYỂN TRANG 1", _NAMES_NOBODY),
+    scan_page("HỒ SƠ VẬN CHUYỂN TRANG CUỐI", _NAMES_NOBODY, _other_company()),
+], 22)
 
 if __name__ == "__main__":
     force = "--force" in sys.argv[1:]

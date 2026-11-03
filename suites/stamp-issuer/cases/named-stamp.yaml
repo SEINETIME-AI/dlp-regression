@@ -1,0 +1,4 @@
+title: The company's own stamp, in any size or format, is read on the ring and fires the rule
+expect_all:
+  secrecy: secret
+  domains: [uat-stamp-issuer]

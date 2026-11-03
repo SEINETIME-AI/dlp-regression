@@ -196,6 +196,7 @@ class AdminConsole:
                     # Required field: its label ends with " *".
                     card.get_by_role("spinbutton", name=re.compile("^Ngưỡng tin cậy dấu mộc")).fill(
                         str(condition["stamp"]["threshold"]))
+                self.fill_stamp_issuers(card, condition["stamp"])
             else:  # keyword technique: one keyword or regex matcher, optionally "≥ N times"
                 if "regex" in condition:
                     self.pick(card.get_by_role("combobox", name="Loại", exact=True), "regex")
@@ -225,6 +226,19 @@ class AdminConsole:
             card.get_by_label("Trọng số", exact=True).nth(index).fill(str(weight))
         if "threshold" in spec:
             card.get_by_label("Ngưỡng kích hoạt", exact=True).fill(str(spec["threshold"]))
+
+    def fill_stamp_issuers(self, card, spec: dict):
+        """The companies a stamp rule looks for (`issuers: [{name, keywords}]`, each keyword a chip
+        entered with Enter) and `require_issuer`, which fires the rule only on their stamps."""
+        for index, issuer in enumerate(spec.get("issuers") or []):
+            card.get_by_role("button", name="Thêm công ty", exact=True).click()
+            card.get_by_label(re.compile("^Tên công ty")).nth(index).fill(issuer["name"])
+            keywords = card.get_by_label("Từ khoá trên dấu", exact=True).nth(index)
+            for keyword in issuer["keywords"]:
+                keywords.fill(keyword)
+                keywords.press("Enter")
+        if spec.get("require_issuer"):
+            card.get_by_role("checkbox", name="Chỉ áp dụng khi là dấu mộc của các công ty này").check()
 
     def fill_embedding(self, card, spec: dict):
         """Semantic (ML) condition: descriptions and an optional similarity threshold."""

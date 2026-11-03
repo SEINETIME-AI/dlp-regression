@@ -1,0 +1,37 @@
+title: A stamp rule that names the company on the stamp (issuers, "chỉ áp dụng")
+
+# The rule fires only on a stamp of "Thử Nghiệm UAT". The agent reads the ring of each
+# stamp it finds (OCR) and compares it with the keyword, accents and case dropped and
+# small OCR slips allowed. When the ring reads as noise (a faint seal printed over text),
+# the text around the stamp (the signature block) is searched for the company instead,
+# exactly. Another company's legible stamp never fires, whatever is written next to it; a
+# page naming the company without a stamp never fires either.
+#
+# Needs the Console and backend with stamp issuers (frontend c430077, backend 02075b7,
+# both on main) and an agent that reads stamps on the large-file path.
+#
+# Only one stamp rule reaches the agent: the one with the highest threshold wins the
+# merge with the department's real policy (0.75), so 0.8 here. The synthetic stamps
+# score 0.92-0.96 with the shipped model; the faint seal with the signature through
+# its ring about 0.91 (over black text it would drop to 0.5 and miss).
+
+document_types:
+  - {code: uat-stamp-issuer, name: UAT Dấu của công ty}
+
+data_source:
+  extra_extensions: [.png]
+
+metrics:
+  positive_secrecy: secret
+
+policies:
+  - name: UAT stamp issuer
+    conditions:
+      - name: UAT dấu Thử Nghiệm UAT
+        secrecy: secret
+        document_type: uat-stamp-issuer
+        stamp:
+          threshold: 0.8
+          issuers:
+            - {name: Thử Nghiệm UAT, keywords: [THỬ NGHIỆM UAT]}
+          require_issuer: true

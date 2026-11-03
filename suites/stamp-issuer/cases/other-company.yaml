@@ -1,0 +1,4 @@
+title: Another company's legible stamp does not fire, even with the company named right next to it as the recipient
+expect_all:
+  secrecy: unlabelled
+  domains: []

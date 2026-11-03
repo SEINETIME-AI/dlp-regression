@@ -1,0 +1,4 @@
+title: A red e-signature block on a page that names the company is not taken for its stamp
+expect_all:
+  secrecy: unlabelled
+  domains: []

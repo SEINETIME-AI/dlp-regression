@@ -1,0 +1,4 @@
+title: The company's name in the text, with no stamp on the page, never fires a stamp rule
+expect_all:
+  secrecy: unlabelled
+  domains: []

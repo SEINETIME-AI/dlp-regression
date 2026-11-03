@@ -1,0 +1,8 @@
+title: A scanned PDF past 20 MiB (large-file path) still has its stamps read and the company matched
+expected:
+  ho-so-22mb.pdf:
+    secrecy: secret
+    domains: [uat-stamp-issuer]
+  ho-so-22mb-khac.pdf:
+    secrecy: unlabelled
+    domains: []

@@ -51,3 +51,19 @@ def write_large_pdf(path: str, first_page: str, last_page: str, size_mb: float):
             pdf.multi_cell(0, 10, text)
     pdf.output(path)
 
+
+
+def write_large_scan_pdf(path: str, pages: list, size_mb: float):
+    """A scanned PDF (image-only pages, no text layer) past the agent's 20 MiB large-file
+    threshold: `pages` are the scanned pages in order, and a noise image (it does not
+    compress) on a page between the first and the rest brings the file to `size_mb`."""
+    side = int((size_mb * MB / 3) ** 0.5)
+    noise = Image.frombytes("RGB", (side, side), os.urandom(side * side * 3))
+    pdf = FPDF()
+    for index, page in enumerate(pages):
+        pdf.add_page()
+        pdf.image(page, x=0, y=0, w=210)
+        if index == 0:
+            pdf.add_page()
+            pdf.image(noise, x=10, y=10, w=190)
+    pdf.output(path)
