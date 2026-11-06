@@ -35,6 +35,12 @@ class Settings:
     backend_start: str = os.environ.get("UAT_BACKEND_START", "")
     policy_timeout_s: int = 240
     classify_timeout_s: int = 240
+    # A suite stops waiting for labels once the agent has classified no file for this long (or restarted):
+    # longer than the slowest single file (a 22 MB text under the agent's CPU cap), far shorter than the
+    # classify timeout. UAT_STALL_S overrides it.
+    stall_timeout_s: int = int(os.environ.get("UAT_STALL_S", "120"))
+    # How often a waiting suite prints how far it got.
+    progress_every_s: int = 30
     data_dir: Path = field(default=REPO_ROOT / "data")
     suites_dir: Path = field(default=REPO_ROOT / "suites")
     reports_dir: Path = field(default=REPO_ROOT / "reports")

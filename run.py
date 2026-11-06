@@ -22,6 +22,16 @@ from harness.smb import remove_leftovers as remove_smb_leftovers
 from harness.suite import Suite
 
 
+def keep_awake() -> None:
+    """A run takes 20 minutes or more with nobody at the keyboard; a laptop that goes to sleep in the middle
+    fails the suite it was in (the agent's watchdog logs "system sleep or freeze"). Lasts until this process
+    exits."""
+    if sys.platform == "win32":
+        import ctypes
+        es_continuous, es_system_required = 0x80000000, 0x00000001
+        ctypes.windll.kernel32.SetThreadExecutionState(es_continuous | es_system_required)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     target = parser.add_mutually_exclusive_group(required=True)
@@ -36,6 +46,7 @@ def main() -> int:
     if args.case and (not args.suite or len(args.suite) != 1):
         parser.error("--case needs exactly one --suite")
 
+    keep_awake()
     settings = Settings()
     api = Api(settings.base_url, settings.admin_user, settings.admin_password)
 

@@ -16,7 +16,7 @@ from playwright.sync_api import Browser
 from harness.api import Api
 from harness.config import Settings
 from harness.files import LABELED_SUFFIXES, embedded_label
-from harness.health import AgentMonitor
+from harness.health import AgentLogTail, AgentMonitor
 from harness.smb import SmbShare, remove_leftovers as remove_smb_leftovers
 from harness.steps import StepRunner, dropped_later, run_command, touched_names
 from harness.ui import AdminConsole
@@ -332,18 +332,44 @@ class Suite:
         """The agent writes its decision into each file right after classifying it."""
         batches = [[case] for case in self.cases] if sequential else [self.cases]
         for batch in batches:
+            log = AgentLogTail(self.settings.agent_log)
             for case in batch:
                 case.drop_files()
             pending = list(batch)
-            deadline = time.monotonic() + self.settings.classify_timeout_s
+            started = time.monotonic()
+            deadline = started + self.settings.classify_timeout_s
+            next_progress = started + self.settings.progress_every_s
+            stalled = ""
             while pending and time.monotonic() < deadline:
                 for case in list(pending):
                     if labels := case.labels():
                         case.verify(labels)
                         pending.remove(case)
+                if not pending:
+                    break
+                log.poll()
+                # Stop waiting as soon as the agent cannot get there: it restarted, or it has classified
+                # nothing for a while although files are still waiting.
+                if log.restarted:
+                    stalled = f"the agent restarted ({log.restarted})"
+                elif log.idle_s() > self.settings.stall_timeout_s:
+                    stalled = f"the agent classified no file for {self.settings.stall_timeout_s}s"
+                if stalled:
+                    break
+                if time.monotonic() >= next_progress:
+                    done = len(batch) - len(pending)
+                    waiting = ", ".join(c.name for c in pending[:4]) + (" …" if len(pending) > 4 else "")
+                    print(f"  … {done}/{len(batch)} case(s) labelled after {time.monotonic() - started:.0f}s; "
+                          f"waiting on {waiting}", flush=True)
+                    next_progress += self.settings.progress_every_s
                 time.sleep(1)
             for case in pending:
-                case.result.error = f"no label after {self.settings.classify_timeout_s}s"
+                if stalled:
+                    case.result.error = f"no label: {stalled} after {time.monotonic() - started:.0f}s"
+                    for line in log.notable:
+                        case.result.checks.append((False, f"agent log: {line}"))
+                else:
+                    case.result.error = f"no label after {self.settings.classify_timeout_s}s"
 
     def check_event_findings(self):
         """Every classification event the backend got for a case file explains itself: the

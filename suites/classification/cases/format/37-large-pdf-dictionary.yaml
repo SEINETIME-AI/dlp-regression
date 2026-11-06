@@ -1,10 +1,12 @@
-title: A 22 MB PDF fires a dictionary rule from its first and last pages (TC-H-03)
+title: A 22 MB PDF is read whole and fires a dictionary rule from its first and last pages (TC-H-03)
 
 # "hợp tác xã" on page 1, "nông sản" on page 3; a noise image on page 2 makes the size.
-# A PDF over 20 MB is read for its text layer only (no OCR), so its pages are flagged unread and
-# the agent policy's floor gives it "Pending review" until scan pages are told apart in the lab.
+# No file size decides how a file is read any more: with room in the agent's RAM budget (88 MB for
+# this file) it is read whole and its image page is OCR'd, so nothing is left unread. Without room it
+# goes to the server when one answers, or waits for room; only after 30 deferrals (about 5 minutes) is
+# it read in chunks without OCR, which gives "Pending review" with partial coverage.
 expected:
   bien-ban-22mb.pdf:
-    secrecy: pending_review
+    secrecy: unlabelled
     domains: [uat-nong-san]
-    coverage: partial
+    coverage: full

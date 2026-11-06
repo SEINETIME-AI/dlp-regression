@@ -11,6 +11,14 @@ class AdminConsole:
     def __init__(self, page: Page, base_url: str):
         self.page = page
         self.base_url = base_url.rstrip("/")
+        # The console pops a toast for each file the agent classifies, bottom right, where the dialogs keep
+        # their save buttons; while a suite's files are classified they cover "Tạo nguồn" and the like.
+        # The UAT checks results through the API, not the toasts, so they are hidden on every page.
+        page.add_init_script(
+            "document.addEventListener('DOMContentLoaded', () => {"
+            " const style = document.createElement('style');"
+            " style.textContent = '.MuiSnackbar-root { display: none !important; }';"
+            " document.head.appendChild(style); });")
 
     def screenshot(self, path: Path):
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -141,6 +149,11 @@ class AdminConsole:
         for extension in extra_extensions:
             include.fill(extension)
             include.press("Enter")
+        # The suggestions stay open after Enter and cover "Tạo nguồn"; Escape only while they are open,
+        # or it would close the dialog.
+        if self.page.get_by_role("listbox").is_visible():
+            self.page.keyboard.press("Escape")
+            expect(self.page.get_by_role("listbox")).to_be_hidden()
         if smb:
             # Only the scanner machine walks the share, signed in with these credentials.
             dialog.get_by_label(re.compile("^Máy quét")).click()
@@ -231,14 +244,15 @@ class AdminConsole:
         """The companies a stamp rule looks for (`issuers: [{name, keywords}]`, each keyword a chip
         entered with Enter) and `require_issuer`, which fires the rule only on their stamps."""
         for index, issuer in enumerate(spec.get("issuers") or []):
-            card.get_by_role("button", name="Thêm công ty", exact=True).click()
-            card.get_by_label(re.compile("^Tên công ty")).nth(index).fill(issuer["name"])
+            card.get_by_role("button", name="Thêm tên trên dấu", exact=True).click()
+            # Required, so MUI adds a thin space (U+2009) and "*" to the label: \s matches both spaces.
+            card.get_by_label(re.compile(r"^Tên trên dấu\s*\*?$")).nth(index).fill(issuer["name"])
             keywords = card.get_by_label("Từ khoá trên dấu", exact=True).nth(index)
             for keyword in issuer["keywords"]:
                 keywords.fill(keyword)
                 keywords.press("Enter")
         if spec.get("require_issuer"):
-            card.get_by_role("checkbox", name="Chỉ áp dụng khi là dấu mộc của các công ty này").check()
+            card.get_by_role("checkbox", name="Chỉ áp dụng khi khớp một trong các tên trên dấu này").check()
 
     def fill_embedding(self, card, spec: dict):
         """Semantic (ML) condition: descriptions and an optional similarity threshold."""

@@ -87,3 +87,41 @@ class AgentMonitor:
         checks.append((limit is None or logs <= limit,
                        f"log folder {logs:.1f} MB" + (f" (limit {limit})" if limit else "")))
         return checks
+
+
+class AgentLogTail:
+    """What the agent wrote to its log since this object was made: files classified, and the lines that
+    say the agent is stuck or restarting. Starts at the log's current end; a rotated log is read from
+    its start."""
+
+    CLASSIFIED = "-> secrecy="
+    RESTART = ("watchdog:", "stopped by watchdog", "nextdlp stopping")
+
+    def __init__(self, path: Path):
+        self.path = path
+        self.offset = path.stat().st_size if path.exists() else 0
+        self.last_classified = time.monotonic()
+        self.restarted = ""
+        self.notable: list[str] = []  # the latest warnings and errors, newest last
+
+    def poll(self):
+        try:
+            size = self.path.stat().st_size
+            if size < self.offset:  # rotated
+                self.offset = 0
+            with open(self.path, "rb") as handle:
+                handle.seek(self.offset)
+                text = handle.read().decode("utf-8", errors="replace")
+                self.offset = handle.tell()
+        except OSError:
+            return
+        for line in text.splitlines():
+            if self.CLASSIFIED in line:
+                self.last_classified = time.monotonic()
+            if not self.restarted and any(marker in line for marker in self.RESTART):
+                self.restarted = line.strip()[:220]
+            if "[warning]" in line or "[error]" in line:
+                self.notable = (self.notable + [line.strip()[:220]])[-5:]
+
+    def idle_s(self) -> float:
+        return time.monotonic() - self.last_classified
