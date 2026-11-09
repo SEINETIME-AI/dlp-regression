@@ -1,0 +1,15 @@
+title: AutoCAD drawings are classified by their text — a DXF directly, a DWG through dwg2dxf.exe
+
+# The DXF is an AutoCAD 2018 file: a Unicode title, a TCVN3 (.VnTime) line stored as
+# code-page-1252 characters, an MTEXT with formatting codes, and a title block whose
+# attribute names the station. The DWG was written with LibreDWG's dwgadd and needs
+# libredwg\dwg2dxf.exe next to nextdlp.exe; without it the agent reports the drawing
+# as unextractable and the case fails. Neither format carries a NextDLP label, so both
+# results come from the backend.
+expected:
+  so-do-nguyen-ly.dxf:
+    secrecy: unlabelled
+    domains: [uat-ban-ve]
+  ban-ve-tram.dwg:
+    secrecy: unlabelled
+    domains: [uat-ban-ve]

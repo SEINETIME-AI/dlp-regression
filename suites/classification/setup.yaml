@@ -31,6 +31,7 @@ document_types:
   - {code: uat-kiem-ke, name: UAT Kiểm kê}
   - {code: uat-dau-moc, name: UAT Dấu mộc}
   - {code: uat-o-so, name: UAT Ô số}
+  - {code: uat-ban-ve, name: UAT Bản vẽ điện}
 
 # A secrecy label the admin adds above secret, created in the console for the run
 # and deleted after it (the purge takes the documents and label history using it).
@@ -41,10 +42,10 @@ secrecy_labels:
 # (negative_secrecy does the same for secrecy levels).
 negative_document_types: [uat-dict-default, uat-cong-no-strict]
 
-# The UI form starts with .pdf/.docx/.xlsx; the format cases also need images, slides
-# and plain text.
+# The UI form starts with .pdf/.docx/.xlsx; the format cases also need images, slides,
+# plain text and AutoCAD drawings.
 data_source:
-  extra_extensions: [.png, .pptx, .txt]
+  extra_extensions: [.png, .pptx, .txt, .dxf, .dwg]
 
 policies:
   - name: UAT classification keyword
@@ -104,6 +105,13 @@ policies:
         document_type: uat-kiem-ke
         dictionary:
           terms: {báo cáo kiểm kê: 1}
+          threshold: 1
+      # Text of an AutoCAD drawing (48-autocad-drawing): the DXF is read directly, the DWG
+      # through dwg2dxf.exe; a title block in a TCVN3 font must match these Unicode terms.
+      - name: UAT bản vẽ điện
+        document_type: uat-ban-ve
+        dictionary:
+          terms: {trạm biến áp: 0.5, sơ đồ nguyên lý: 0.5, tủ phân phối: 0.5}
           threshold: 1
 
   # TC-B-01..04. Thresholds are the rule's own: on this suite's files the target
