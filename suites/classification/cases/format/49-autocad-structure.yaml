@@ -1,0 +1,19 @@
+title: AutoCAD drawings with no text are recognised by their layers and inserted blocks
+
+# The agent lists a drawing's layers, block definitions and inserted blocks (with counts) after its
+# text. so-do-khong-chu.dxf (tools/make_drawings.py, sld-notext seed 1) is a single-line diagram with no
+# text at all: blocks MBA, MC, DCL, CT, CSV inserted on layer E-POWR. so-do-khong-chu.dwg is seed 2 of
+# the same variant, written by LibreDWG's dxf2dwg and read back by the agent through dwg2dxf.exe (the
+# manifest shows its layer, block and insert names survive). chi-tiet-co-khi.dxf (mech-control seed 1)
+# is a mechanical part with M-* layers and a TITLE block: no electrical structure, no trigger word of any
+# other rule. Drawings carry no NextDLP label, so the results come from the backend.
+expected:
+  so-do-khong-chu.dxf:
+    secrecy: unlabelled
+    domains: [uat-ban-ve-cau-truc]
+  so-do-khong-chu.dwg:
+    secrecy: unlabelled
+    domains: [uat-ban-ve-cau-truc]
+  chi-tiet-co-khi.dxf:
+    secrecy: unlabelled
+    domains: []
