@@ -6,6 +6,7 @@ import base64
 import hashlib
 import hmac
 import io
+import re
 import secrets
 import shlex
 import subprocess
@@ -282,38 +283,17 @@ class AntiUninstallSuite:
         case.checks.append((_pbkdf2_matches(self.hash, self.password),
                             "hashlib PBKDF2-HMAC-SHA256 of the NFC UTF-8 password matches the hash"))
 
-    def machine_events_in_console(self, case: CaseResult):
+    def machine_events_on_endpoints(self, case: CaseResult):
         with self.page.expect_response(lambda r: "/api/console/stream" in r.url, timeout=20000):
-            self.console.open("/classification-events")
+            self.console.open("/endpoints")
         self.page.wait_for_timeout(1000)
         answer = self.agent.push_machine_events(list(EVENT_CHIPS), ALERT_ACTION)
         case.checks.append((answer.accepted_count == 2,
                             f"BatchSync of uninstall_denied + agent_unclean_stop without file fields: "
                             f"accepted {answer.accepted_count} (want 2)"))
+        machine_id = self.agent.machine_id
 
-        rows = self.page.locator(".MuiDataGrid-row").filter(has_text=MACHINE)
-        expect(rows).to_have_count(2, timeout=45000)
-        for event_type, chip in EVENT_CHIPS.items():
-            row = rows.filter(has_text=chip)
-            cells = [row.locator(f"[data-field={field}]").inner_text().strip() if row.count() == 1 else "-"
-                     for field in ("file_name", "secrecy_label")]
-            case.checks.append((row.count() == 1 and cells == ["—", "—"],
-                                f"events page: {event_type} row with chip \"{chip}\", document and secrecy "
-                                f"cells {cells} (want —)"))
-        self.shot("events-uninstall-denied.png")
-
-        rows.filter(has_text=EVENT_CHIPS["uninstall_denied"]).click()
-        drawer = self.page.get_by_role("region", name="Chi tiết sự kiện")
-        button = drawer.get_by_role("link", name="Mở máy trạm")
-        expect(button).to_be_visible()
-        href = button.get_attribute("href") or ""
-        no_file_rows = drawer.get_by_text("Đường dẫn", exact=True).count() == 0
-        case.checks.append((href.endswith(f"/endpoints?q={MACHINE}") and no_file_rows,
-                            f"drawer: button \"Mở máy trạm\" -> {href}, no file rows ({no_file_rows})"))
-        self.shot("event-drawer-machine-event.png", full_page=False)
-        self.page.keyboard.press("Escape")
-        expect(drawer).to_be_hidden()
-
+        # Bell notices live only in page memory: check them before any reload.
         bell = self.page.get_by_role("button", name="Thông báo", exact=True)
         for event_type, message in NOTIFICATIONS.items():
             bell.click()
@@ -324,13 +304,57 @@ class AntiUninstallSuite:
                 self.shot("bell-uninstall-notifications.png", around=popover.get_by_role("button").filter(has_text=MACHINE))
             shown = message in item.inner_text()
             item.click()
-            self.page.wait_for_url(lambda url: "/endpoints" in url)
-            query = urllib.parse.urlparse(self.page.url).query
-            case.checks.append((shown and urllib.parse.parse_qs(query).get("q") == [MACHINE],
+            self.page.wait_for_url(lambda url: "machine=" in url)
+            query = urllib.parse.parse_qs(urllib.parse.urlparse(self.page.url).query)
+            opened = self.page.get_by_role("region", name="Chi tiết máy trạm").is_visible()
+            case.checks.append((shown and query.get("machine") == [machine_id] and opened,
                                 f"bell: \"{EVENT_CHIPS[event_type]}\" for {MACHINE} (message ok: {shown}) "
-                                f"opens {urllib.parse.urlparse(self.page.url).path}?{query}"))
+                                f"opens /endpoints?machine={query.get('machine')} with the drawer ({opened})"))
             self.page.go_back()
             self.page.wait_for_timeout(500)
+
+        machine_events = self.api.items("/api/agent-events", machine_id=machine_id, category="machine")
+        document_events = self.api.items("/api/agent-events", machine_id=machine_id, category="document")
+        types = sorted(event["event_type"] for event in machine_events)
+        case.checks.append((types == sorted(EVENT_CHIPS) and not document_events,
+                            f"API: category=machine gives {types}, category=document gives "
+                            f"{len(document_events)} rows (want both types, 0)"))
+        detail = self.api.get(f"/api/machines/{machine_id}").get("last_protection_event") or {}
+        case.checks.append((detail.get("recent") is True and detail.get("event_type") in EVENT_CHIPS,
+                            f"API: /api/machines/{{id}} last_protection_event = {detail}"))
+
+        self.console.open("/classification-events")
+        self.page.locator(".MuiDataGrid-root").wait_for()
+        self.page.wait_for_timeout(1500)
+        timeline_rows = self.page.locator(".MuiDataGrid-row").filter(has_text=MACHINE).count()
+        case.checks.append((timeline_rows == 0,
+                            f"classification timeline: {timeline_rows} rows for {MACHINE} (want 0)"))
+
+        self.console.open("/endpoints")
+        row = self.page.locator(".MuiDataGrid-row").filter(has_text=MACHINE)
+        expect(row).to_have_count(1, timeout=30000)
+        flagged = row.get_by_test_id("protection-flag").count() == 1
+        banner = self.page.get_by_text(re.compile("máy có sự kiện bảo vệ agent trong 7 ngày qua"))
+        case.checks.append((flagged and banner.count() == 1,
+                            f"Máy trạm: {MACHINE} flagged ({flagged}), banner "
+                            f"\"{banner.first.inner_text() if banner.count() else '-'}\""))
+        self.shot("endpoints-protection-flag.png")
+
+        self.page.get_by_role("button", name="Xem các máy này").click()
+        self.page.wait_for_url(lambda url: "protection=recent" in url)
+        expect(row).to_have_count(1)
+        case.checks.append((True, "filter \"Có sự kiện trong 7 ngày\" (from the banner) keeps the machine"))
+
+        self.page.get_by_role("button", name=MACHINE, exact=True).click()
+        drawer = self.page.get_by_role("region", name="Chi tiết máy trạm")
+        items = drawer.get_by_role("listitem")
+        expect(items).to_have_count(2, timeout=15000)
+        chips = [items.nth(i).inner_text().splitlines()[0] for i in range(2)]
+        case.checks.append((sorted(chips) == sorted(EVENT_CHIPS.values()),
+                            f"drawer \"Sự kiện bảo vệ agent\": {chips}"))
+        self.shot("endpoint-drawer-protection-events.png", full_page=False)
+        drawer.get_by_role("button", name="Đóng").click()
+        expect(drawer).to_be_hidden()
 
     def package_msi_carries_hash(self, case: CaseResult):
         self.check_msi(case, self.hash.ljust(MSI_HASH_LENGTH, "_"),

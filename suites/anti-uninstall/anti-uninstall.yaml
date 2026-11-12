@@ -12,9 +12,9 @@ cases:
   - name: heartbeat-carries-hash
     title: An enrolled agent gets the PBKDF2 hash of that password on heartbeat
     check: heartbeat_carries_hash
-  - name: machine-events-in-console
-    title: uninstall_denied and agent_unclean_stop without file fields show as events and admin notifications
-    check: machine_events_in_console
+  - name: machine-events-on-endpoints
+    title: uninstall_denied and agent_unclean_stop show on Máy trạm (flag, filter, drawer) and as admin notifications, not in the classification timeline
+    check: machine_events_on_endpoints
   - name: package-msi-carries-hash
     title: A package built after the password was set carries its hash in UNINSTALL_PASSWORD_HASH
     check: package_msi_carries_hash
