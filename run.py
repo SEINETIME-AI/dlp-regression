@@ -14,6 +14,8 @@ import sys
 
 from playwright.sync_api import sync_playwright
 
+from harness.anti_uninstall import SPEC_FILE as ANTI_UNINSTALL_SPEC, AntiUninstallSuite
+from harness.anti_uninstall import remove_leftovers as remove_anti_uninstall_leftovers
 from harness.api import Api
 from harness.config import Settings
 from harness.console import ConsoleSuite
@@ -51,12 +53,15 @@ def main() -> int:
     api = Api(settings.base_url, settings.admin_user, settings.admin_password)
 
     if args.cleanup:
-        removed = api.delete_uat_objects(settings.prefix) + remove_smb_leftovers()
+        anti_uninstall_removed, problems = remove_anti_uninstall_leftovers(api, settings)
+        removed = api.delete_uat_objects(settings.prefix) + remove_smb_leftovers() + anti_uninstall_removed
         print("removed:", removed or "nothing")
-        return 0
+        if problems:
+            print("left:", problems)
+        return 1 if problems else 0
 
     folders = sorted(p for p in settings.suites_dir.iterdir()
-                     if (p / "setup.yaml").exists() or (p / "console.yaml").exists())
+                     if any((p / spec).exists() for spec in ("setup.yaml", "console.yaml", ANTI_UNINSTALL_SPEC)))
     if args.suite:
         folders = [p for p in folders if p.name in args.suite]
         missing = set(args.suite) - {p.name for p in folders}
@@ -73,8 +78,12 @@ def main() -> int:
                 print(log.read_text(encoding="utf-8"), end="", flush=True)
 
             try:
-                suite = (ConsoleSuite(folder, settings, api, args.case) if (folder / "console.yaml").exists()
-                         else Suite(folder, settings, api, run_id, args.case))
+                if (folder / "console.yaml").exists():
+                    suite = ConsoleSuite(folder, settings, api, args.case)
+                elif (folder / ANTI_UNINSTALL_SPEC).exists():
+                    suite = AntiUninstallSuite(folder, settings, api, args.case)
+                else:
+                    suite = Suite(folder, settings, api, run_id, args.case)
             except ValueError as error:
                 parser.error(str(error))
             print(f"running {suite.name} ({len(suite.cases)} case(s)) …", flush=True)

@@ -33,6 +33,13 @@ class Settings:
     # e.g. "docker stop nextdlp-release-dlp-server-1"; such a suite fails without them.
     backend_stop: str = os.environ.get("UAT_BACKEND_STOP", "")
     backend_start: str = os.environ.get("UAT_BACKEND_START", "")
+    # The anti-uninstall suite plays an agent over gRPC with stubs built from the backend's protos at run time.
+    grpc_target: str = os.environ.get("UAT_GRPC_TARGET", "localhost:9091")
+    backend_proto_dir: Path = Path(os.environ.get("UAT_BACKEND_PROTO_DIR", r"C:\dev\dlp-ext-backend\proto"))
+    # The API cannot delete a machine, so the suite removes its simulated one with SQL (dev stack container).
+    psql: str = os.environ.get("UAT_PSQL", "docker exec -i dlp-ext-dev-postgres psql -U postgres -d dlp -v ON_ERROR_STOP=1")
+    # Where the anti-uninstall suite saves its Console screenshots (for the wiki).
+    screenshot_dir: Path = Path(os.environ.get("UAT_SCREENSHOT_DIR", str(REPO_ROOT / "reports" / "screenshots")))
     policy_timeout_s: int = 240
     classify_timeout_s: int = 240
     # A suite stops waiting for labels once the agent has classified no file for this long (or restarted):
