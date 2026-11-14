@@ -206,9 +206,7 @@ class AdminConsole:
             elif "stamp" in condition:
                 self.pick(card.get_by_role("combobox", name="Kỹ thuật nhận diện"), "Dấu mộc")
                 if "threshold" in condition["stamp"]:
-                    # Required field: its label ends with " *".
-                    card.get_by_role("spinbutton", name=re.compile("^Ngưỡng tin cậy dấu mộc")).fill(
-                        str(condition["stamp"]["threshold"]))
+                    self.fill_stamp_threshold(card, condition["stamp"]["threshold"])
                 self.fill_stamp_issuers(card, condition["stamp"])
             else:  # keyword technique: one keyword or regex matcher, optionally "≥ N times"
                 if "regex" in condition:
@@ -240,6 +238,14 @@ class AdminConsole:
             card.get_by_label("Trọng số", exact=True).nth(index).fill(str(weight))
         if "threshold" in spec:
             card.get_by_label("Ngưỡng kích hoạt", exact=True).fill(str(spec["threshold"]))
+
+    def fill_stamp_threshold(self, scope, threshold: float):
+        """The stamp threshold has a default and sits in a collapsed "Nâng cao" section; open it, then fill."""
+        field = scope.get_by_role("spinbutton", name=re.compile("^Ngưỡng tin cậy dấu mộc"))
+        if field.count() == 0:
+            scope.get_by_role("button", name=re.compile("^Nâng cao: ngưỡng tin cậy dấu mộc")).click()
+        # Required field: its label ends with " *".
+        field.fill(str(threshold))
 
     def fill_stamp_issuers(self, card, spec: dict):
         """The companies a stamp rule looks for (`issuers: [{name, keywords}]`, each keyword a chip
@@ -305,7 +311,5 @@ class AdminConsole:
                 box.get_by_role("spinbutton", name=re.compile("^Ngưỡng tương đồng")).fill(str(value["threshold"]))
         elif kind == "stamp":
             if "threshold" in value:
-                # Required field: its label ends with " *".
-                box.get_by_role("spinbutton", name=re.compile("^Ngưỡng tin cậy dấu mộc")).fill(
-                    str(value["threshold"]))
+                self.fill_stamp_threshold(box, value["threshold"])
             self.fill_stamp_issuers(box, value)
