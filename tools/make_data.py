@@ -401,6 +401,71 @@ FILES["stamp-issuer/large-scan/ho-so-22mb-khac.pdf"] = lambda p: write_large_sca
     scan_page("HỒ SƠ VẬN CHUYỂN TRANG CUỐI", _NAMES_NOBODY, _other_company()),
 ], 22)
 
+# ── hybrid-stamp suite ───────────────────────────────────────────────────────
+# Hybrid rules that combine a stamp with a keyword or a topic. The stamped pages are images,
+# so the topic reaches the agent through OCR: body text at 52 px, short lines, every line
+# readable on its own. Each rule has its own trigger (kiểm định thang máy; nghiệm thu cây
+# xanh; the debt-settlement topic), so a page only carries the triggers of its case.
+_BIG = 52
+_LIFT_LINES = ["Đơn vị đã kiểm định thang máy khu nhà B.", "Kết quả kiểm định thang máy: đạt yêu cầu.",
+               "Thời hạn kiểm định lần sau: mười hai tháng.", "(dữ liệu giả lập)"]
+_HANDOVER_LINES = ["Hai bên bàn giao bàn ghế phòng họp tầng ba.", "Bên nhận đã đếm đủ số lượng bàn ghế.",
+                   "(dữ liệu giả lập)"]
+_GREENERY_LINES = ["Hai bên nghiệm thu cây xanh tuyến đường nội khu.", "Biên bản nghiệm thu cây xanh lập thành hai bản.",
+                   "(dữ liệu giả lập)"]
+_DEBT_LINES = ["Khách hàng đã thanh toán xong khoản nợ tồn đọng.", "Công nợ của khách hàng đã được tất toán.",
+               "Đối chiếu cuối kỳ không còn số dư phải thu.", "(dữ liệu giả lập)"]
+_SECOND_COMPANY = "Công ty Cổ phần Vận tải ABC"
+
+
+def _named_below(name):
+    # The company's name just below the stamp, clear of its ring, so the stamp's score stays clean.
+    def extra(draw, page):
+        draw.text((950, 2040), name, fill="black", font=ImageFont.truetype(FONT, 30))
+    return extra
+
+
+HYBRID_STAMP_SAMPLES = [
+    # Keyword and the stamp of any company: rule A.
+    ("stamp-and-keyword", "kiem-dinh-co-dau.pdf",
+     lambda: scan_page("BIÊN BẢN KIỂM ĐỊNH SỐ 31", _LIFT_LINES, _round(), body_size=_BIG)),
+    # A stamp without the keyword.
+    ("stamp-without-keyword", "ban-giao-co-dau.pdf",
+     lambda: scan_page("BIÊN BẢN BÀN GIAO SỐ 32", _HANDOVER_LINES, _round(), body_size=_BIG)),
+    # The same keyword twice, each company's stamp, the company also named below its stamp.
+    ("company-names", "nghiem-thu-dau-thu-nghiem.pdf",
+     lambda: scan_page("BIÊN BẢN NGHIỆM THU SỐ 33", _GREENERY_LINES, _round(), body_size=_BIG,
+                       extra=_named_below(_ISSUER))),
+    ("company-names", "nghiem-thu-dau-van-tai.pdf",
+     lambda: scan_page("BIÊN BẢN NGHIỆM THU SỐ 34", _GREENERY_LINES, _other_company(), body_size=_BIG,
+                       extra=_named_below(_SECOND_COMPANY))),
+    # The topic of the semantic sub-condition with a stamp.
+    ("semantic-and-stamp", "tat-toan-co-dau.pdf",
+     lambda: scan_page("XÁC NHẬN TẤT TOÁN CÔNG NỢ", _DEBT_LINES, _round(), body_size=_BIG)),
+]
+
+for _case, _name, _page in HYBRID_STAMP_SAMPLES:
+    FILES[f"hybrid-stamp/{_case}/{_name}"] = lambda p, page=_page: _write_sample(p, page())
+
+
+def _write_txt(path: str, lines: list[str]):
+    Path(path).write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+FILES.update({
+    # The keyword without any stamp: plain text has no stamp information (the condition is
+    # skipped), a text PDF has it and shows no stamp (the condition fails).
+    "hybrid-stamp/keyword-without-stamp/kiem-dinh.txt": lambda p: _write_txt(p, [
+        "Sổ theo dõi kiểm định thang máy khu nhà C.", "Lần kiểm định thang máy gần nhất: đạt.", "(dữ liệu giả lập)"]),
+    "hybrid-stamp/keyword-without-stamp/kiem-dinh-ban-in.pdf": lambda p: write_text_pdf(p, [
+        "Thông báo lịch kiểm định thang máy khu nhà D.", "Cư dân dùng thang bộ trong thời gian kiểm định thang máy.",
+        "(dữ liệu giả lập)"]),
+    # The topic without a stamp: an "all" rule with a stamp condition stays silent.
+    "hybrid-stamp/semantic-and-stamp/tat-toan.txt": lambda p: _write_txt(p, [
+        "Khoản nợ quá hạn của khách hàng đã được thanh toán đầy đủ.",
+        "Kế toán đã tất toán công nợ, số dư phải thu bằng không.", "(dữ liệu giả lập)"]),
+})
+
 if __name__ == "__main__":
     force = "--force" in sys.argv[1:]
     for relative, write in FILES.items():

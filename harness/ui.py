@@ -226,8 +226,9 @@ class AdminConsole:
         form.get_by_role("button", name="Tạo chính sách", exact=True).click()
         expect(form).to_be_hidden()
 
-    _COMBINATORS = {"all": "Tất cả điều kiện", "any": "Bất kỳ điều kiện nào"}
-    _SUB_TYPES = {"keyword": "Từ khóa", "data_pattern": "Mẫu dữ liệu (regex)", "wordlist": "Danh sách từ"}
+    _COMBINATORS = {"all": "Tất cả điều kiện", "any": "Bất kỳ điều kiện nào", "at_least": "Ít nhất N điều kiện"}
+    _SUB_TYPES = {"keyword": "Từ khóa", "data_pattern": "Mẫu dữ liệu (regex)", "semantic": "Phân tích ý nghĩa",
+                  "wordlist": "Danh sách từ", "stamp": "Dấu mộc"}
 
     def fill_dictionary(self, card, spec: dict):
         """Weighted terms; `threshold` left out keeps the field empty (the agent's default applies)."""
@@ -266,24 +267,45 @@ class AdminConsole:
             card.get_by_label("Ngưỡng tương đồng", exact=True).fill(str(spec["threshold"]))
 
     def fill_hybrid(self, card, spec: dict):
-        """Sub-conditions are appended at the end, so each one's fields are the last of their kind."""
+        """Each sub-condition is filled inside its own box, so two of a kind (two stamps naming
+        different companies) never share fields."""
         self.pick(card.get_by_role("combobox", name="Kỹ thuật nhận diện"), "Hybrid (nhiều tín hiệu)")
         self.pick(card.get_by_role("combobox", name="Tổ hợp"), self._COMBINATORS[spec["combinator"]])
+        if spec["combinator"] == "at_least":
+            card.get_by_label("N", exact=True).fill(str(spec.get("at_least", 1)))
         for index, sub in enumerate(spec["conditions"]):
             (kind, value), = sub.items()
             if index > 0:
                 card.get_by_role("button", name="Thêm điều kiện con", exact=True).click()
+            sub_type = card.get_by_role("combobox", name="Loại điều kiện").nth(index)
             if kind != "keyword":  # a new sub-condition starts as a keyword
-                self.pick(card.get_by_role("combobox", name="Loại điều kiện").nth(index), self._SUB_TYPES[kind])
-            if kind == "keyword":
-                field = card.get_by_label("Từ khóa", exact=True).last
-                field.fill(value)
-                field.press("Enter")
-            elif kind == "data_pattern":
-                card.get_by_label("Biểu thức RE2", exact=True).last.fill(value)
-            elif kind == "wordlist":
-                # Comma-separated terms split on blur, each at the default weight 0.5;
-                # the default threshold is 1, so any two terms fire it.
-                field = card.get_by_label("Từ ngữ", exact=True).last
-                field.fill(", ".join(value))
-                field.blur()
+                self.pick(sub_type, self._SUB_TYPES[kind])
+            box = sub_type.locator("xpath=ancestor::div[contains(@class, 'MuiPaper-root')][1]")
+            self.fill_sub_condition(box, kind, value)
+
+    def fill_sub_condition(self, box, kind: str, value):
+        """`value` is the keyword, pattern or term list; a dict for semantic ({descriptions, threshold})
+        and stamp ({threshold, issuers})."""
+        if kind == "keyword":
+            field = box.get_by_label("Từ khóa", exact=True)
+            field.fill(value)
+            field.press("Enter")
+        elif kind == "data_pattern":
+            box.get_by_label("Biểu thức RE2", exact=True).fill(value)
+        elif kind == "wordlist":
+            # Comma-separated terms split on blur, each at the default weight 0.5;
+            # the default threshold is 1, so any two terms fire it.
+            field = box.get_by_label("Từ ngữ", exact=True).last
+            field.fill(", ".join(value))
+            field.blur()
+        elif kind == "semantic":
+            # One multi-line field, a description per line.
+            box.get_by_label("Mô tả", exact=True).fill("\n".join(value["descriptions"]))
+            if "threshold" in value:
+                box.get_by_role("spinbutton", name=re.compile("^Ngưỡng tương đồng")).fill(str(value["threshold"]))
+        elif kind == "stamp":
+            if "threshold" in value:
+                # Required field: its label ends with " *".
+                box.get_by_role("spinbutton", name=re.compile("^Ngưỡng tin cậy dấu mộc")).fill(
+                    str(value["threshold"]))
+            self.fill_stamp_issuers(box, value)

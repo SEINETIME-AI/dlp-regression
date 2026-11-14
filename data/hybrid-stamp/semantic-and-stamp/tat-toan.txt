@@ -1,0 +1,3 @@
+Khoản nợ quá hạn của khách hàng đã được thanh toán đầy đủ.
+Kế toán đã tất toán công nợ, số dư phải thu bằng không.
+(dữ liệu giả lập)

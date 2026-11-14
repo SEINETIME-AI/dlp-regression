@@ -1,0 +1,70 @@
+title: Hybrid rules with a stamp sub-condition ("Dấu mộc" next to Từ khóa and Phân tích ý nghĩa)
+
+# A stamp sub-condition passes when the document carries a stamp at its threshold and,
+# when names are listed, one of them is read on the stamp or right around it. A file
+# with no stamp information (plain text) skips it, so an "all" rule does not fire; a
+# text PDF has stamp information and simply shows no stamp.
+#
+# This suite has no policy-level stamp rule on purpose: only one stamp rule reaches the
+# agent (the highest threshold wins the merge), and the department's real policy keeps
+# its own, which names "Thủ tướng Chính phủ" and fires only on that name, so it stays
+# silent on every page here. Sub-conditions are not merged: each rule keeps its own.
+#
+# Thresholds: the synthetic round stamps score 0.92-0.96 with the shipped model, so
+# 0.8 (the console's default). The semantic sub-condition reuses the description and
+# 0.6 threshold of the classification suite (target text ~0.72-0.75, others <= ~0.43);
+# here it reads OCR text, which has not been measured separately.
+#
+# Needs the agent, backend and console with stamp sub-conditions (branches
+# feature/hybrid-stamp-condition of dlp-win, dlp-ext-backend, dlp-ext-frontend).
+
+document_types:
+  - {code: uat-hs-thu-nghiem, name: UAT Nghiệm thu dấu Thử Nghiệm UAT}
+  - {code: uat-hs-van-tai, name: UAT Nghiệm thu dấu Vận Tải ABC}
+  - {code: uat-hs-cong-no, name: UAT Công nợ có dấu}
+
+data_source:
+  extra_extensions: [.txt]
+
+policies:
+  - name: UAT hybrid stamp
+    conditions:
+      # Rule A: the keyword and a stamp of any company.
+      - name: UAT kiểm định có dấu
+        secrecy: secret
+        hybrid:
+          combinator: all
+          conditions:
+            - keyword: kiểm định thang máy
+            - stamp: {threshold: 0.8}
+      # Rules B and C: the same keyword, each with the stamp of its own company. Two stamp
+      # sub-conditions in one policy, each with its own names.
+      - name: UAT nghiệm thu dấu Thử Nghiệm UAT
+        document_type: uat-hs-thu-nghiem
+        hybrid:
+          combinator: all
+          conditions:
+            - keyword: nghiệm thu cây xanh
+            - stamp:
+                threshold: 0.8
+                issuers: [{name: Thử Nghiệm UAT, keywords: [THỬ NGHIỆM UAT]}]
+      - name: UAT nghiệm thu dấu Vận Tải ABC
+        document_type: uat-hs-van-tai
+        hybrid:
+          combinator: all
+          conditions:
+            - keyword: nghiệm thu cây xanh
+            - stamp:
+                threshold: 0.8
+                issuers: [{name: Vận Tải ABC, keywords: [VẬN TẢI ABC]}]
+      # A topic (semantic) and a stamp: the semantic model must still run with a stamp
+      # condition in the rule.
+      - name: UAT công nợ có dấu
+        document_type: uat-hs-cong-no
+        hybrid:
+          combinator: all
+          conditions:
+            - semantic:
+                descriptions: ["Thanh toán công nợ của khách hàng: tất toán khoản nợ tồn đọng và đối chiếu số dư phải thu."]
+                threshold: 0.6
+            - stamp: {threshold: 0.8}

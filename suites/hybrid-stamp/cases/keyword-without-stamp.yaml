@@ -1,0 +1,4 @@
+title: The keyword without a stamp does not fire it, whether the file has no stamp information (plain text) or shows no stamp (text PDF)
+expect_all:
+  secrecy: unlabelled
+  domains: []

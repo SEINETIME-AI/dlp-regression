@@ -1,0 +1,8 @@
+title: A topic (semantic) and a stamp fire together; the same topic in plain text without a stamp does not
+expected:
+  tat-toan-co-dau.pdf:
+    secrecy: unlabelled
+    domains: [uat-hs-cong-no]
+  tat-toan.txt:
+    secrecy: unlabelled
+    domains: []

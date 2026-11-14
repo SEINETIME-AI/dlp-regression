@@ -15,7 +15,7 @@ git lfs pull
 .\.venv\Scripts\python.exe run.py --cleanup                         # leftovers of an aborted run
 ```
 
-- Suites: `classification`, `mode`, `stamp`, `stamp-issuer`, `lifecycle`, `offline`, `console`, `smb`,
+- Suites: `classification`, `mode`, `stamp`, `stamp-issuer`, `hybrid-stamp`, `lifecycle`, `offline`, `console`, `smb`,
   `anti-uninstall` (README "Suites"). `reports/<suite>.log` is replaced by each run; a failure leaves `<suite>-failure.png`.
 - Settings are environment variables (`harness/config.py`): `UAT_BASE_URL` (default the dev Console
   `http://localhost:5173`), `UAT_ADMIN_USER`, `UAT_ADMIN_PASS`, `UAT_MACHINE`, `UAT_WORK_ROOT`. The

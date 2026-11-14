@@ -1,0 +1,8 @@
+title: Two rules with the same keyword and a stamp naming different companies each fire only on their company's stamp
+expected:
+  nghiem-thu-dau-thu-nghiem.pdf:
+    secrecy: unlabelled
+    domains: [uat-hs-thu-nghiem]
+  nghiem-thu-dau-van-tai.pdf:
+    secrecy: unlabelled
+    domains: [uat-hs-van-tai]

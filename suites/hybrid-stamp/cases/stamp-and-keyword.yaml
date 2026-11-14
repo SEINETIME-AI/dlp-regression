@@ -1,0 +1,4 @@
+title: The keyword and a stamp on a scanned page fire the "all" rule (keyword + stamp)
+expect_all:
+  secrecy: secret
+  domains: []

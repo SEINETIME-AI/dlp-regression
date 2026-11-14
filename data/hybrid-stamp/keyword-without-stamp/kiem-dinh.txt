@@ -1,0 +1,3 @@
+Sổ theo dõi kiểm định thang máy khu nhà C.
+Lần kiểm định thang máy gần nhất: đạt.
+(dữ liệu giả lập)

@@ -1,0 +1,4 @@
+title: A stamp alone does not fire a hybrid rule that also needs the keyword
+expect_all:
+  secrecy: unlabelled
+  domains: []

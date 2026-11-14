@@ -96,17 +96,18 @@ def faded(stamp: Image.Image, opacity: float) -> Image.Image:
 
 
 def scan_page(title: str, lines: list[str], stamp: Image.Image | None = None, at=(1000, 1650),
-              rotate: float = 0, extra=None) -> Image.Image:
+              rotate: float = 0, extra=None, body_size: int = 34) -> Image.Image:
     """A scanned A4 page as an image: a title, body lines, a signature block and an
     optional stamp (rotated by `rotate` degrees, its top-left corner at `at`).
-    `extra(draw, page)` adds anything else, e.g. a decoy for a negative case."""
+    `extra(draw, page)` adds anything else, e.g. a decoy for a negative case.
+    A larger `body_size` makes the body lines easier for OCR to read."""
     page = Image.new("RGB", (1654, 2339), "white")
     draw = ImageDraw.Draw(page)
     draw.text((500, 160), title, fill="black", font=ImageFont.truetype(BOLD_FONT, 44))
-    body = ImageFont.truetype(FONT, 34)
+    body = ImageFont.truetype(FONT, body_size)
     for i, line in enumerate(lines):
-        draw.text((150, 320 + i * 70), line, fill="black", font=body)
-    draw.text((1050, 1500), "ĐẠI DIỆN BÊN GIAO", fill="black", font=body)
+        draw.text((150, 320 + i * (body_size + 36)), line, fill="black", font=body)
+    draw.text((1050, 1500), "ĐẠI DIỆN BÊN GIAO", fill="black", font=ImageFont.truetype(FONT, 34))
     if extra:
         extra(draw, page)
     if stamp is not None:
