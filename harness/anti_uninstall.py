@@ -1,7 +1,9 @@
-"""The anti-uninstall suite (laptop part): the admin sets and clears the agent uninstall password in
-the Console; an agent played over gRPC enrolls from a UAT package, gets the hash on heartbeat and
-reports the two machine events; the package's MSI carries the hash. Installing and uninstalling the
-real agent is the VM's part. The cases build on each other, so they run in order and all together."""
+"""The anti-uninstall suite (laptop part): no package can be built before the uninstall password
+exists; the admin sets and changes it on the Bộ cài Agent page and nobody can remove it; an agent
+played over gRPC enrolls from a UAT package, gets the hash on heartbeat and reports the two machine
+events; the package's MSI carries the hash. The stack's own password hash is saved before the run and
+put back after it. Installing and uninstalling the real agent is the VM's part. The cases build on
+each other, so they run in order and all together."""
 import base64
 import hashlib
 import hmac
@@ -36,7 +38,11 @@ MACHINE = "UAT-ANTI-UNINSTALL"
 HASH_PREFIX = "pbkdf2-sha256$600000$"
 MSI_PROPERTY, MSI_HASH_LENGTH = "UNINSTALL_PASSWORD_HASH", 128
 PASSWORD_PATH = "/api/system/settings/uninstall-password"
-SETTINGS_PATH = "/api/system/settings"
+PACKAGES_PATH = "/api/agent-packages"
+PACKAGES_PAGE = "/agent-deployment"
+SAVED_HASH_FILE = "anti-uninstall-saved-hash.txt"
+BANNER = "Chưa đặt mật khẩu gỡ agent. Cần đặt mật khẩu trước khi tạo bộ cài"
+STATUS_SET = "Mật khẩu gỡ agent: đã đặt"
 ALERT_ACTION = "tamper_protection"
 EVENT_CHIPS = {"uninstall_denied": "Gỡ agent bị từ chối", "agent_unclean_stop": "Agent dừng bất thường"}
 NOTIFICATIONS = {"uninstall_denied": "Việc gỡ agent trên", "agent_unclean_stop": "đã dừng bất thường"}
@@ -48,7 +54,7 @@ class SuiteAborted(RuntimeError):
 
 
 def _password_set(api: Api) -> bool:
-    return bool(api.get(SETTINGS_PATH)["agent"].get("uninstall_password_set"))
+    return bool(api.get(PACKAGES_PATH).get("uninstall_password_set"))
 
 
 def _uat_machines(api: Api) -> list[dict]:
@@ -56,50 +62,81 @@ def _uat_machines(api: Api) -> list[dict]:
 
 
 def _uat_packages(api: Api) -> list[dict]:
-    return [p for p in api.items("/api/agent-packages") if p["organization_unit_id"] == UNIT_ID]
+    return [p for p in api.items(PACKAGES_PATH) if p["organization_unit_id"] == UNIT_ID]
 
 
 def _uat_unit_exists(api: Api) -> bool:
     return any(unit["id"] == UNIT_ID for unit in api.items("/api/org-units"))
 
 
-def _delete_machine_rows(settings: Settings):
-    """The API only revokes a machine; its row (events cascade) goes with SQL, as UAT_PSQL says."""
-    sql = f"DELETE FROM machines WHERE department = '{UNIT_ID}'"
-    result = subprocess.run(shlex.split(settings.psql, posix=False) + ["-c", sql], capture_output=True, text=True)
+def _psql(settings: Settings, sql: str) -> str:
+    """Runs one statement the API has no route for (`UAT_PSQL`); returns its unaligned output."""
+    result = subprocess.run(shlex.split(settings.psql, posix=False) + ["-At", "-c", sql], capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(f"psql failed: {result.stderr.strip() or result.stdout.strip()}")
+    return result.stdout.strip()
 
 
-def remove_leftovers(api: Api, settings: Settings, clear_password: bool | None = None) -> tuple[list[str], list[str]]:
-    """Removes the suite's package, machine and unit. The password is cleared when `clear_password`
-    is True, or when None and this suite's unit was still there (an aborted run set it).
+def _stored_hash(settings: Settings) -> str:
+    """The stack's uninstall password hash; '' when none is set."""
+    return _psql(settings, "SELECT COALESCE(uninstall_password_hash, '') FROM system_settings WHERE id = 'default'")
+
+
+def _write_hash(settings: Settings, value: str):
+    """The API cannot remove the password or take a hash, so the test resets and restores it with SQL."""
+    if not re.fullmatch(r"[A-Za-z0-9$+/=_-]*", value):
+        raise RuntimeError("the saved uninstall password hash has unexpected characters; not written")
+    literal = f"'{value}'" if value else "NULL"
+    _psql(settings, f"UPDATE system_settings SET uninstall_password_hash = {literal} WHERE id = 'default'")
+
+
+def _saved_hash_file(settings: Settings) -> Path:
+    return settings.reports_dir / SAVED_HASH_FILE
+
+
+def save_and_reset_password(settings: Settings):
+    """Keeps the stack's hash in a file (so an aborted run can still be undone), then removes the password."""
+    settings.reports_dir.mkdir(parents=True, exist_ok=True)
+    _saved_hash_file(settings).write_text(_stored_hash(settings), encoding="ascii")
+    _write_hash(settings, "")
+
+
+def restore_password(settings: Settings) -> bool:
+    """Puts back the hash a run saved; False when no run left one to restore."""
+    saved = _saved_hash_file(settings)
+    if not saved.exists():
+        return False
+    _write_hash(settings, saved.read_text(encoding="ascii").strip())
+    saved.unlink()
+    return True
+
+
+def remove_leftovers(api: Api, settings: Settings) -> tuple[list[str], list[str]]:
+    """Removes the suite's package, machine and unit and restores the stack's uninstall password.
     Returns (removed, problems)."""
     removed, problems = [], []
-    unit_was_there = _uat_unit_exists(api)
-    if clear_password or (clear_password is None and unit_was_there):
-        try:
-            if _password_set(api):
-                api.call("PUT", PASSWORD_PATH, {"password": None})
-                removed.append("uninstall password")
-        except ApiError as error:
-            problems.append(f"uninstall password left: {error}")
     try:
         for package in _uat_packages(api):
-            api.call("DELETE", f"/api/agent-packages/{package['id']}")
+            api.call("DELETE", f"{PACKAGES_PATH}/{package['id']}")
             removed.append(f"package {package['id']}")
         machines = _uat_machines(api)
         for machine in machines:
             if machine.get("status") != "revoked":
                 api.call("PATCH", f"/api/machines/{machine['id']}/revoke")
         if machines:
-            _delete_machine_rows(settings)
+            # The API only revokes a machine; its row (events cascade) goes with SQL.
+            _psql(settings, f"DELETE FROM machines WHERE department = '{UNIT_ID}'")
             removed += [f"machine {m['name']}" for m in machines]
-        if unit_was_there:
+        if _uat_unit_exists(api):
             api.call("DELETE", f"/api/org-units/{UNIT_ID}")
             removed.append(f"unit {UNIT_ID}")
     except (ApiError, RuntimeError) as error:
         problems.append(f"{UNIT_NAME} objects left: {error}")
+    try:
+        if restore_password(settings):
+            removed.append("the run's uninstall password (the stack's own hash is back)")
+    except (OSError, RuntimeError) as error:
+        problems.append(f"uninstall password not restored: {error}")
     return removed, problems
 
 
@@ -145,7 +182,8 @@ class AntiUninstallSuite:
         self.shots = settings.screenshot_dir
         # Synthetic test data, made per run and never logged.
         self.password = unicodedata.normalize("NFC", f"Khóa gỡ máy trạm {secrets.token_hex(3)}")
-        self.password_set_by_run = False
+        self.new_password = unicodedata.normalize("NFC", f"Mật khẩu đổi lại {secrets.token_hex(3)}")
+        self.original_hash = ""
         self.hash = ""
         self.package: dict = {}
         self.agent: SimulatedAgent | None = None
@@ -171,21 +209,36 @@ class AntiUninstallSuite:
                     "height": max(b["y"] + b["height"] for b in boxes) - top}
         self.page.screenshot(path=str(self.shots / name), full_page=full_page and clip is None, clip=clip)
 
-    def open_password_block(self):
-        self.console.open("/system?section=agent")
-        new = self.page.get_by_label("Mật khẩu mới", exact=True)
-        form = self.page.locator("form").filter(has=new)
-        return form, new, form.get_by_label("Nhập lại mật khẩu", exact=True)
+    def password_form(self, title: str):
+        """The fields of the open password dialog, which must carry `title`."""
+        dialog = self.page.get_by_role("dialog", name=title, exact=True)
+        expect(dialog).to_be_visible()
+        new = dialog.get_by_label("Mật khẩu mới", exact=True)
+        return dialog, new, dialog.get_by_label("Nhập lại mật khẩu", exact=True)
 
-    def chip(self, text: str):
-        return self.page.get_by_text(text, exact=True)
+    def save_password(self, dialog, new, confirm, password: str):
+        """Fills both fields and saves; returns the PUT answer and the package list the page reloads."""
+        new.fill(password)
+        confirm.fill(password)
+        is_put = lambda r: r.url.endswith(PASSWORD_PATH) and r.request.method == "PUT"  # noqa: E731
+        is_list = lambda r: r.url.endswith(PACKAGES_PATH) and r.request.method == "GET"  # noqa: E731
+        with self.page.expect_response(is_list) as reloaded, self.page.expect_response(is_put) as answer:
+            dialog.get_by_role("button", name="Lưu", exact=True).click()
+        return answer.value, reloaded.value
+
+    def refused(self, method: str, path: str, body=None) -> tuple[int, str]:
+        """The status and text of an API call the server must refuse; (0, …) when it accepted it."""
+        try:
+            return 0, str(self.api.call(method, path, body))
+        except ApiError as error:
+            return error.status, str(error)
 
     def storage_text(self) -> str:
         return self.page.evaluate("() => JSON.stringify({...localStorage}) + JSON.stringify({...sessionStorage})")
 
     def download_msi(self, folder: Path) -> Path:
         """The package's installer; the download is a zip (MSI + helper script) when the template has one."""
-        request = urllib.request.Request(f"{self.api.base_url}/api/agent-packages/{self.package['id']}/download")
+        request = urllib.request.Request(f"{self.api.base_url}{PACKAGES_PATH}/{self.package['id']}/download")
         request.add_header("Authorization", "Bearer " + self.api.token)
         with urllib.request.urlopen(request, timeout=120) as response:
             payload = response.read()
@@ -197,6 +250,10 @@ class AntiUninstallSuite:
         msi.write_bytes(payload)
         return msi
 
+    def package_request(self) -> dict:
+        policy = next(p for p in self.api.items("/api/agent-policies") if p.get("is_active"))
+        return {"organization_unit_id": UNIT_ID, "agent_policy_id": policy["id"], "max_enrollments": 1}
+
     def check_msi(self, case: CaseResult, expected: str, what: str):
         with tempfile.TemporaryDirectory(prefix="uat-msi-") as folder:
             value = _msi_property(self.download_msi(Path(folder)), MSI_PROPERTY)
@@ -204,68 +261,83 @@ class AntiUninstallSuite:
         case.checks.append((value == expected, f"MSI {MSI_PROPERTY}: {shown} (want {what})"))
 
     # ── Cases ───────────────────────────────────────────────────────────────
-    def precondition_no_password(self, case: CaseResult):
-        already = _password_set(self.api)
-        case.checks.append((not already, f"agent.uninstall_password_set before the run: {already} (want false)"))
-        if already:
-            raise SuiteAborted("an uninstall password is already set; its hash cannot be restored, so nothing is changed")
-        removed, problems = remove_leftovers(self.api, self.settings, clear_password=False)
+    def stack_password_saved(self, case: CaseResult):
+        removed, problems = remove_leftovers(self.api, self.settings)
         case.checks.append((not problems, "an earlier run's leftovers: " + ("; ".join(removed + problems) or "none")))
         if problems:
             raise SuiteAborted("an earlier run's objects could not be removed")
+        self.original_hash = _stored_hash(self.settings)
+        save_and_reset_password(self.settings)
+        unset = not _password_set(self.api)
+        case.checks.append((unset, f"the stack's hash ({len(self.original_hash)} chars) is saved and the password "
+                                   f"removed for the run: uninstall_password_set={not unset} (want false)"))
+        if not unset:
+            raise SuiteAborted("the uninstall password could not be removed for the run")
+
+    def package_needs_password(self, case: CaseResult):
+        parent = self.api.get(f"/api/org-units/{self.settings.department_code}")["parent_id"]
+        self.api.call("POST", "/api/org-units", {"id": UNIT_ID, "display_name": UNIT_NAME,
+                                                 "unit_type": "Phòng", "parent_id": parent})
+        status, text = self.refused("POST", PACKAGES_PATH, self.package_request())
+        packages = len(_uat_packages(self.api))
+        case.checks.append((status == 409 and "uninstall_password_required" in text and packages == 0,
+                            f"create a package without a password -> {text} (want 409 uninstall_password_required), "
+                            f"packages of {UNIT_NAME}: {packages}"))
+        self.console.open(PACKAGES_PAGE)
+        banner = self.page.get_by_role("alert").filter(has_text=BANNER)
+        expect(banner).to_have_count(1)
+        offered = banner.get_by_role("button", name="Đặt mật khẩu gỡ agent", exact=True).count() == 1
+        case.checks.append((offered, f"Bộ cài Agent shows the banner \"{BANNER}…\" with \"Đặt mật khẩu gỡ agent\" ({offered})"))
+        self.shot("agent-packages-password-banner.png")
 
     def console_set_password(self, case: CaseResult):
         answers = ApiAnswers(self.page, PASSWORD_PATH)
-        form, new, confirm = self.open_password_block()
-        expect(self.chip("Chưa đặt")).to_be_visible()
-        case.checks.append((True, "System page shows \"Mật khẩu gỡ agent\" with chip \"Chưa đặt\""))
-        self.shot("system-uninstall-password-unset.png")
+        self.page.get_by_role("button", name="Tạo bộ cài mới", exact=True).click()
+        dialog, new, confirm = self.password_form("Đặt mật khẩu gỡ agent")
+        case.checks.append((True, "\"Tạo bộ cài mới\" opens \"Đặt mật khẩu gỡ agent\" first"))
+        self.shot("agent-packages-password-dialog.png", full_page=False)
 
-        save = form.get_by_role("button", name="Lưu", exact=True)
-        for value, helper, what, shot in (("   ", "Mật khẩu không được để trống.", "whitespace only",
-                                           "system-uninstall-password-blank-error.png"),
-                                          ("Mật khẩ", "Mật khẩu cần ít nhất 8 ký tự.", "7 characters", None)):
+        save = dialog.get_by_role("button", name="Lưu", exact=True)
+        for value, helper, what in (("   ", "Mật khẩu không được để trống.", "whitespace only"),
+                                    ("Mật khẩ", "Mật khẩu cần ít nhất 8 ký tự.", "7 characters")):
             since = len(answers.answers)
             new.fill(value)
             confirm.fill(value)
             confirm.press("Enter")
             self.page.wait_for_timeout(1000)
-            helper_shown = form.get_by_text(helper, exact=True).count() == 1
+            helper_shown = dialog.get_by_text(helper, exact=True).count() == 1
             sent = answers.last("PUT", since)
             case.checks.append((helper_shown and save.is_disabled() and sent is None,
                                 f"{what}: helper \"{helper}\" shown ({helper_shown}), Lưu disabled "
                                 f"({save.is_disabled()}), request sent: {sent or 'none'}"))
-            if shot:
-                self.shot(shot)
 
-        new.fill(self.password)
-        confirm.fill(self.password)
-        is_put = lambda r: r.url.endswith(PASSWORD_PATH) and r.request.method == "PUT"  # noqa: E731
-        is_get = lambda r: r.url.endswith(SETTINGS_PATH) and r.request.method == "GET"  # noqa: E731
-        with self.page.expect_response(is_get) as reloaded, self.page.expect_response(is_put) as answer:
-            save.click()
-        self.password_set_by_run = True
-        put_body, get_body = answer.value.text(), reloaded.value.text()
-        case.checks.append((answer.value.status == 200 and '"uninstall_password_set":true' in put_body
+        answer, reloaded = self.save_password(dialog, new, confirm, self.password)
+        put_body, list_body = answer.text(), reloaded.text()
+        case.checks.append((answer.status == 200 and '"uninstall_password_set":true' in put_body
                             and "pbkdf2" not in put_body,
-                            f"PUT uninstall-password -> {answer.value.status} {put_body.strip()}"))
-        expect(self.chip("Đã đặt")).to_be_visible()
-        empty = new.input_value() == "" and confirm.input_value() == ""
-        case.checks.append((empty, f"chip \"Đã đặt\" shown, both fields empty ({empty})"))
-        leaks = [where for where, text in (("GET settings", get_body), ("browser storage", self.storage_text()))
+                            f"PUT uninstall-password -> {answer.status} {put_body.strip()}"))
+        create = self.page.get_by_role("dialog").filter(has_text="Tạo bộ cài")
+        expect(dialog).to_be_hidden()
+        expect(create).to_be_visible()
+        case.checks.append((True, "the password dialog closes and the create-package dialog opens"))
+        self.page.keyboard.press("Escape")
+        expect(create).to_be_hidden()
+        expect(self.page.get_by_text(STATUS_SET, exact=True)).to_be_visible()
+        gone = self.page.get_by_role("alert").filter(has_text=BANNER).count() == 0
+        case.checks.append((gone, f"the page shows \"{STATUS_SET}\" and the banner is gone ({gone})"))
+        leaks = [where for where, text in (("GET agent-packages", list_body), ("browser storage", self.storage_text()))
                  if self.password in text or "pbkdf2" in text]
-        case.checks.append(('"uninstall_password_set":true' in get_body and not leaks,
-                            "GET settings has uninstall_password_set=true; password or pbkdf2 found in: "
+        case.checks.append(('"uninstall_password_set":true' in list_body and not leaks,
+                            "GET agent-packages has uninstall_password_set=true; password or pbkdf2 found in: "
                             + (", ".join(leaks) or "nowhere")))
-        self.shot("system-uninstall-password-set.png")
+        self.shot("agent-packages-password-set.png")
+
+        self.console.open("/system?section=agent")
+        fields = self.page.get_by_label("Mật khẩu mới", exact=True).count()
+        case.checks.append((fields == 0, f"Hệ thống › Cấu hình Agent mặc định has no password form: {fields} fields (want 0)"))
 
     def heartbeat_carries_hash(self, case: CaseResult):
-        parent = self.api.get(f"/api/org-units/{self.settings.department_code}")["parent_id"]
-        self.api.call("POST", "/api/org-units", {"id": UNIT_ID, "display_name": UNIT_NAME,
-                                                 "unit_type": "Phòng", "parent_id": parent})
-        policy = next(p for p in self.api.items("/api/agent-policies") if p.get("is_active"))
-        created = self.api.call("POST", "/api/agent-packages",
-                                {"organization_unit_id": UNIT_ID, "agent_policy_id": policy["id"], "max_enrollments": 1})
+        created = self.api.call("POST", PACKAGES_PATH, self.package_request())
         self.package = created["package"]
         case.checks.append((self.package["status"] == "ready",
                             f"package {self.package['id']} for {UNIT_NAME}: {self.package['status']}"))
@@ -360,38 +432,39 @@ class AntiUninstallSuite:
         self.check_msi(case, self.hash.ljust(MSI_HASH_LENGTH, "_"),
                        f"the heartbeat hash then '_' to {MSI_HASH_LENGTH}")
 
-    def console_clear_password(self, case: CaseResult):
-        form, _, _ = self.open_password_block()
-        form.get_by_role("button", name="Xóa mật khẩu", exact=True).click()
-        dialog = self.console.dialog()
-        expect(dialog).to_be_visible()
-        text = dialog.inner_text()
-        case.checks.append(("mọi máy trạm" in text, "confirm dialog says protection turns off on \"mọi máy trạm\""))
-        self.shot("system-uninstall-password-clear-dialog.png", full_page=False)
-        is_put = lambda r: r.url.endswith(PASSWORD_PATH) and r.request.method == "PUT"  # noqa: E731
-        with self.page.expect_response(is_put) as answer:
-            dialog.get_by_role("button", name="Xóa mật khẩu", exact=True).click()
-        case.checks.append((answer.value.status == 200 and '"uninstall_password_set":false' in answer.value.text(),
-                            f"PUT uninstall-password null -> {answer.value.status} {answer.value.text().strip()}"))
-        expect(self.chip("Chưa đặt")).to_be_visible()
-        stored = _password_set(self.api)
-        case.checks.append((not stored, f"chip \"Chưa đặt\" shown, uninstall_password_set={stored}"))
-        if not stored:
-            self.password_set_by_run = False
+    def console_change_password(self, case: CaseResult):
+        for body, what in (({"password": None}, "null"), ({"password": ""}, "empty")):
+            status, text = self.refused("PUT", PASSWORD_PATH, body)
+            case.checks.append((status == 400 and "cannot be removed" in text and _password_set(self.api),
+                                f"PUT uninstall-password {what} -> {text} (want 400, password still set)"))
 
-        heartbeat = self.agent.heartbeat()
-        present = heartbeat.HasField("uninstall_password_hash")
-        case.checks.append((present and heartbeat.uninstall_password_hash == "",
-                            f"heartbeat uninstall_password_hash present ({present}), "
-                            f"value {heartbeat.uninstall_password_hash!r} (want '')"))
-        rebuilt = self.api.call("POST", f"/api/agent-packages/{self.package['id']}/regenerate")
+        self.console.open(PACKAGES_PAGE)
+        remove_buttons = self.page.get_by_role("button", name=re.compile("Xóa mật khẩu")).count()
+        self.page.get_by_role("button", name="Đổi mật khẩu", exact=True).click()
+        dialog, new, confirm = self.password_form("Đổi mật khẩu gỡ agent")
+        remove_buttons += dialog.get_by_role("button", name=re.compile("Xóa mật khẩu")).count()
+        case.checks.append((remove_buttons == 0, f"\"Xóa mật khẩu\" buttons on the page and in the dialog: {remove_buttons} (want 0)"))
+        answer, _ = self.save_password(dialog, new, confirm, self.new_password)
+        reminder = dialog.get_by_role("alert").filter(has_text="hãy Tạo lại các bộ cài")
+        expect(reminder).to_have_count(1)
+        case.checks.append((answer.status == 200, f"PUT uninstall-password (change) -> {answer.status}; the dialog stays "
+                                                  "open with the reminder about offline machines and old packages"))
+        self.shot("agent-packages-password-changed.png", full_page=False)
+        dialog.get_by_role("button", name="Đóng", exact=True).click()
+        expect(dialog).to_be_hidden()
+
+        old_hash, self.hash = self.hash, self.agent.heartbeat().uninstall_password_hash
+        case.checks.append((self.hash != old_hash and _pbkdf2_matches(self.hash, self.new_password),
+                            f"heartbeat sends a new hash ({self.hash != old_hash}) that matches the new password"))
+        self.check_msi(case, old_hash.ljust(MSI_HASH_LENGTH, "_"), "still the old hash: built before the change")
+        rebuilt = self.api.call("POST", f"{PACKAGES_PATH}/{self.package['id']}/regenerate")
         case.checks.append((rebuilt["package"]["status"] == "ready", f"package regenerated: {rebuilt['package']['status']}"))
-        self.check_msi(case, "_" * MSI_HASH_LENGTH, f"{MSI_HASH_LENGTH} '_'")
+        self.check_msi(case, self.hash.ljust(MSI_HASH_LENGTH, "_"), "the new hash after Tạo lại")
 
     def cleanup(self, case: CaseResult):
         if self.agent:
             self.agent.close()
-        removed, problems = remove_leftovers(self.api, self.settings, clear_password=self.password_set_by_run)
+        removed, problems = remove_leftovers(self.api, self.settings)
         self.removed, self.problems = removed, problems
         case.checks.append((not problems, "removed: " + ("; ".join(removed) or "nothing")
                             + ("; problems: " + "; ".join(problems) if problems else "")))
@@ -401,8 +474,8 @@ class AntiUninstallSuite:
                    if m["name"].upper().startswith("UAT")]
                 + [f"package {p['id']}" for p in _uat_packages(self.api)])
         case.checks.append((not left, "nothing named UAT left: " + (", ".join(left) or "none")))
-        password_left = _password_set(self.api)
-        case.checks.append((not password_left, f"uninstall_password_set after the run: {password_left} (want false)"))
+        restored = _stored_hash(self.settings) == self.original_hash
+        case.checks.append((restored, f"the stack's uninstall password hash is back as before the run ({restored})"))
 
     # ── Run ─────────────────────────────────────────────────────────────────
     def run(self, browser: Browser, keep: bool, sequential: bool, report) -> SuiteResult:
@@ -435,7 +508,7 @@ class AntiUninstallSuite:
         except Exception as error:  # noqa: BLE001
             result.error = f"{type(error).__name__}: {error}"
             if not keep:
-                self.removed, self.problems = remove_leftovers(self.api, self.settings, self.password_set_by_run)
+                self.removed, self.problems = remove_leftovers(self.api, self.settings)
         finally:
             page.close()
         result.cleanup = "; ".join(self.removed + self.problems)

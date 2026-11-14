@@ -1,13 +1,17 @@
-# Anti-uninstall protection, the laptop part: the Console's uninstall password, the hash an agent
-# gets on heartbeat and in its installer, and the machine events an agent reports. The agent is
-# played over gRPC (harness/simulated_agent.py); installing, uninstalling and the service lock are
-# checked on the test VM. The cases build on each other and run in this order; cleanup always runs.
+# Anti-uninstall protection, the laptop part: the uninstall password must exist before any package,
+# is set and changed on the Bộ cài Agent page and cannot be removed; the hash an agent gets on
+# heartbeat and in its installer; the machine events an agent reports. The agent is played over gRPC
+# (harness/simulated_agent.py); installing, uninstalling and the service lock are checked on the test
+# VM. The cases build on each other and run in this order; cleanup always runs.
 cases:
-  - name: precondition-no-password
-    title: No uninstall password is set before the run (a set one could not be restored)
-    check: precondition_no_password
+  - name: stack-password-saved
+    title: The stack's own uninstall password hash is saved and the password removed for the run
+    check: stack_password_saved
+  - name: package-needs-password
+    title: Without a password a package cannot be created (409) and Bộ cài Agent shows the banner
+    check: package_needs_password
   - name: console-set-password
-    title: The System page blocks a blank or short password and sets a Vietnamese one without showing it again
+    title: Tạo bộ cài mới asks for the password first, blocks a blank or short one, saves a Vietnamese one without showing it again, then opens the create dialog
     check: console_set_password
   - name: heartbeat-carries-hash
     title: An enrolled agent gets the PBKDF2 hash of that password on heartbeat
@@ -16,11 +20,11 @@ cases:
     title: uninstall_denied and agent_unclean_stop show on Máy trạm (flag, filter, drawer) and as admin notifications, not in the classification timeline
     check: machine_events_on_endpoints
   - name: package-msi-carries-hash
-    title: A package built after the password was set carries its hash in UNINSTALL_PASSWORD_HASH
+    title: The package carries the password's hash in UNINSTALL_PASSWORD_HASH
     check: package_msi_carries_hash
-  - name: console-clear-password
-    title: Clearing the password asks first, then heartbeat sends an empty hash and a rebuilt package none
-    check: console_clear_password
+  - name: console-change-password
+    title: The password cannot be removed (400, no button); after Đổi mật khẩu heartbeat sends the new hash, the old package keeps the old one and a rebuilt package carries the new one
+    check: console_change_password
   - name: cleanup
-    title: The password is cleared and the UAT unit, package and machine are gone
+    title: The UAT unit, package and machine are gone and the stack's own password hash is back
     check: cleanup
