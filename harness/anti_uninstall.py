@@ -47,6 +47,8 @@ ALERT_ACTION = "tamper_protection"
 EVENT_CHIPS = {"uninstall_denied": "Gỡ agent bị từ chối", "agent_unclean_stop": "Agent dừng bất thường"}
 NOTIFICATIONS = {"uninstall_denied": "Việc gỡ agent trên", "agent_unclean_stop": "đã dừng bất thường"}
 VIEWPORT = {"width": 1440, "height": 900}
+# The server caches the hash it sends on heartbeat for 15 s, so a new password can take that long to reach an agent.
+HASH_WAIT_S = 25
 
 
 class SuiteAborted(RuntimeError):
@@ -209,6 +211,16 @@ class AntiUninstallSuite:
                     "height": max(b["y"] + b["height"] for b in boxes) - top}
         self.page.screenshot(path=str(self.shots / name), full_page=full_page and clip is None, clip=clip)
 
+    def heartbeat_hash_for(self, password: str) -> str:
+        """The hash heartbeat sends, once it is the one of @p password or HASH_WAIT_S has passed."""
+        deadline = time.monotonic() + HASH_WAIT_S
+        while True:
+            answer = self.agent.heartbeat()
+            value = answer.uninstall_password_hash if answer.HasField("uninstall_password_hash") else ""
+            if _pbkdf2_matches(value, password) or time.monotonic() >= deadline:
+                return value
+            time.sleep(2)
+
     def password_form(self, title: str):
         """The fields of the open password dialog, which must carry `title`."""
         dialog = self.page.get_by_role("dialog", name=title, exact=True)
@@ -346,12 +358,10 @@ class AntiUninstallSuite:
         case.checks.append((bool(self.agent.machine_id and self.agent.api_key),
                             f"{MACHINE} enrolled as {self.agent.machine_id}"))
 
-        answer = self.agent.heartbeat()
-        present = answer.HasField("uninstall_password_hash")
-        self.hash = answer.uninstall_password_hash
-        case.checks.append((present and self.hash.startswith(HASH_PREFIX),
-                            f"heartbeat uninstall_password_hash present ({present}), starts {self.hash[:21]!r}, "
-                            f"{len(self.hash)} chars"))
+        self.hash = self.heartbeat_hash_for(self.password)
+        case.checks.append((self.hash.startswith(HASH_PREFIX),
+                            f"heartbeat uninstall_password_hash starts {self.hash[:21]!r}, {len(self.hash)} chars "
+                            f"(waited up to {HASH_WAIT_S} s for the server's cache)"))
         case.checks.append((_pbkdf2_matches(self.hash, self.password),
                             "hashlib PBKDF2-HMAC-SHA256 of the NFC UTF-8 password matches the hash"))
 
@@ -453,7 +463,7 @@ class AntiUninstallSuite:
         dialog.get_by_role("button", name="Đóng", exact=True).click()
         expect(dialog).to_be_hidden()
 
-        old_hash, self.hash = self.hash, self.agent.heartbeat().uninstall_password_hash
+        old_hash, self.hash = self.hash, self.heartbeat_hash_for(self.new_password)
         case.checks.append((self.hash != old_hash and _pbkdf2_matches(self.hash, self.new_password),
                             f"heartbeat sends a new hash ({self.hash != old_hash}) that matches the new password"))
         self.check_msi(case, old_hash.ljust(MSI_HASH_LENGTH, "_"), "still the old hash: built before the change")

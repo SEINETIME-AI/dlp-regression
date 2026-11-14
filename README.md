@@ -46,6 +46,9 @@ limits every suite checks (see below).
 .\.venv\Scripts\python.exe run.py --cleanup                              # remove leftovers (also the smb suite's share and account)
 ```
 
+`--all` and several `--suite` run in a fixed order (`SUITE_ORDER` in `run.py`): suites without the real agent
+first, the stamp suites next to each other, `smb` and `offline` last.
+
 `--case` takes the case name (file name without `.yaml`), wherever the case sits
 under `cases/`. Each suite writes `reports/<suite>.log` — PASS/FAIL per case, then
 one cleanup line — replacing the previous run's log; a failing suite also leaves

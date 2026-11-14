@@ -34,6 +34,17 @@ def keep_awake() -> None:
         ctypes.windll.kernel32.SetThreadExecutionState(es_continuous | es_system_required)
 
 
+# Run order for --all and for several --suite: suites without the real agent first, the suites with a stamp
+# rule next to each other (the agent takes one stamp rule), what changes the machine or stops the backend last.
+SUITE_ORDER = ["console", "anti-uninstall", "mode", "hybrid-stamp", "stamp", "stamp-issuer", "lifecycle",
+               "classification", "smb", "offline"]
+
+
+def run_rank(name: str) -> float:
+    """Where a suite runs; one missing from SUITE_ORDER runs just before smb and offline, which stay last."""
+    return SUITE_ORDER.index(name) if name in SUITE_ORDER else SUITE_ORDER.index("smb") - 0.5
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     target = parser.add_mutually_exclusive_group(required=True)
@@ -60,8 +71,9 @@ def main() -> int:
             print("left:", problems)
         return 1 if problems else 0
 
-    folders = sorted(p for p in settings.suites_dir.iterdir()
-                     if any((p / spec).exists() for spec in ("setup.yaml", "console.yaml", ANTI_UNINSTALL_SPEC)))
+    folders = sorted((p for p in settings.suites_dir.iterdir()
+                      if any((p / spec).exists() for spec in ("setup.yaml", "console.yaml", ANTI_UNINSTALL_SPEC))),
+                     key=lambda p: (run_rank(p.name), p.name))
     if args.suite:
         folders = [p for p in folders if p.name in args.suite]
         missing = set(args.suite) - {p.name for p in folders}
